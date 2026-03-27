@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   
+    <title>LA Crime Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+    <style>
+          body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    #map {
+      height: 500px;
+      margin-bottom: 20px;
+    }
+
+    #charts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .chart {
+      flex: 1;
+      min-width: 400px;
+      height: 400px;
+    }    </style>
+</head>
+<body>
+    <h1>LA Crime Dashboard</h1>
+    <div id="map"></div>
+ <div id="charts">
+    <div id="crimeBar" class="chart"></div>
+    <div id="crimeOverTime" class="chart"></div>
+  </div>
+
+  
+    <script src="dashboard.js"></script></body>
+</html>
