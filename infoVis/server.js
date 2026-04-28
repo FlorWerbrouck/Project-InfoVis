@@ -10,7 +10,7 @@ const rawData = fs.readFileSync("data.json");
 const crimeData = JSON.parse(rawData);
 
 app.get("/data", (req, res) => {
-   res.json(crimeData.slice(0, 1000000));
+   res.json(crimeData);
 });
 
 const PORT = 3000;
