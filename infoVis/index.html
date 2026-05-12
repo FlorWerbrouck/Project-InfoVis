@@ -14,11 +14,6 @@
 </head>
 <body>
 
-<div id="loading-overlay">
-    <p>Loading crime data&hellip;</p>
-    <div id="loading-bar-track"><div id="loading-bar-fill"></div></div>
-</div>
-
 <header id="header">
     <button id="sidebar-toggle-btn" title="Toggle sidebar">&#9776;</button>
     <h1>LA Crime Dashboard</h1>
@@ -47,10 +42,6 @@
                 <div class="filter-group">
                     <label>Crime type</label>
                     <select id="filter-crime-type"><option value="">All types</option></select>
-                </div>
-                <div class="filter-group">
-                    <label>Area / District</label>
-                    <select id="filter-area"><option value="">All areas</option></select>
                 </div>
                 <div class="filter-group">
                     <label>Victim gender</label>
@@ -93,6 +84,12 @@
 
     <div id="content">
         <div id="map"></div>
+        <div id="map-loading" class="hidden">
+            <div id="map-loading-card">
+                <div class="map-loading-spinner"></div>
+                <span>Loading area data&hellip;</span>
+            </div>
+        </div>
 
         <div id="bottom-panel">
             <div id="panel-tab-bar">

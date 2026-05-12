@@ -6,3 +6,4 @@ Run: node server.js
 
 Go to http://localhost:3000
 
+GeoJSON downloaded from: https://geohub.lacity.org/datasets/lapd-divisions/explore?location=33.748854%2C-117.619088%2C10

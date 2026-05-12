@@ -1,11 +1,11 @@
+export const ZOOM_THRESHOLD = 12;
+
 export const map = L.map('map', { continuousWorld: false, attributionControl: false });
 L.control.attribution({ position: 'bottomleft' }).addTo(map);
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxNativeZoom: 19,
-    maxZoom: 25,
-    detectRetina: true,
+    maxNativeZoom: 19, maxZoom: 25, detectRetina: true,
 }).addTo(map);
 
 const cartoPositron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
@@ -18,7 +18,7 @@ const cartoPositronD = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{
     detectRetina: true,
 });
 
-map.setView([34.05, -118.25], 11);
+map.setView([34.05, -118.25], 10);
 
 L.control.layers(
     { "OpenStreetMap": osm, "Carto Light": cartoPositron, "Carto Dark": cartoPositronD },
@@ -26,14 +26,40 @@ L.control.layers(
     { position: 'bottomleft' }
 ).addTo(map);
 
-export const cluster = L.markerClusterGroup({
+const cluster = L.markerClusterGroup({
     singleMarkerMode: true,
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: true,
     zoomToBoundsOnClick: true,
-});
+}).addTo(map);
 
-// ── Popup helpers ──────────────────────────────────────────────────────────────
+// ── Per-area marker management ─────────────────────────────────────────────────
+
+const markersByArea = new Map(); // areaName → L.marker[]
+
+export function addMarkersForArea(areaName, data) {
+    if (markersByArea.has(areaName))
+        cluster.removeLayers(markersByArea.get(areaName));
+
+    const markers = data
+        .filter(d => d.LAT && d.LON)
+        .map(d => L.marker([d.LAT, d.LON]).bindPopup(() => createPopup(d)));
+    markersByArea.set(areaName, markers);
+    cluster.addLayers(markers);
+}
+
+export function removeMarkersForArea(areaName) {
+    if (!markersByArea.has(areaName)) return;
+    cluster.removeLayers(markersByArea.get(areaName));
+    markersByArea.delete(areaName);
+}
+
+export function clearAllMarkers() {
+    cluster.clearLayers();
+    markersByArea.clear();
+}
+
+// ── Popup ──────────────────────────────────────────────────────────────────────
 
 function getCrimePartLabel(part) {
     if (part === 1) return "Serious Crime";
@@ -42,40 +68,141 @@ function getCrimePartLabel(part) {
 }
 
 function createPopup(d) {
+    const extra = [d["Crm Cd 2 Desc"], d["Crm Cd 3 Desc"], d["Crm Cd 4 Desc"]]
+        .filter(Boolean).map(c => `<br>&nbsp;&nbsp;+ ${c}`).join("");
+
     return `
-        <b>Main Crime:</b> ${d["Crm Cd Desc"] || "N/A"} (${d["Crm Cd"] || "-"})<br>
+        <b>${d["Crm Cd Desc"] || "N/A"}</b>${extra}<br>
         <b>Date:</b> ${d["DateTime OCC"] || "N/A"}<br>
-        <b>Status:</b> ${d["Status Desc"] || "N/A"} (${d["Status"] || "-"})<br>
-        <b>Classification:</b> ${getCrimePartLabel(d["Part 1-2"])} (${d["Part 1-2"] || "-"})<br>
+        <b>Classification:</b> ${getCrimePartLabel(d["Part 1-2"])}<br>
+        <b>Status:</b> ${d["Status Desc"] || "N/A"}<br>
         <br>
-        <b>Modus Operandi:</b> ${d["MO Desc"] || "N/A"} (${d["Mocodes"] || "-"})<br>
-        <b>Weapon:</b> ${d["Weapon Desc"] || "N/A"} (${d["Weapon Used Cd"] || "-"})<br>
+        <b>Weapon:</b> ${d["Weapon Desc"] || "N/A"}<br>
+        <b>Premise:</b> ${d["Premis Desc"] || "N/A"}<br>
         <br>
         <b>Victim Age:</b> ${d["Vict Age"] ?? "N/A"}<br>
         <b>Victim Sex:</b> ${d["Vict Sex"] || "N/A"}<br>
-        <b>Victim Descent:</b> ${d["Vict Descent Desc"] || "N/A"} (${d["Vict Descent"] || "-"})<br>
+        <b>Victim Descent:</b> ${d["Vict Descent"] || "N/A"}<br>
         <br>
-        <b>Area:</b> ${d["AREA NAME"] || "N/A"} (${d["AREA"] || "-"})<br>
+        <b>Area:</b> ${d["AREA NAME"] || "N/A"}<br>
         <b>Location:</b> ${d["LOCATION"] || "N/A"}<br>
-        <b>Premise:</b> ${d["Premis Desc"] || "N/A"} (${d["Premis Cd"] || "-"})<br>
-        <br>
-        <b>Additional Crime 2:</b> ${d["Crm Cd 2 Desc"] || "N/A"} (${d["Crm Cd 2"] || "-"})<br>
-        <b>Additional Crime 3:</b> ${d["Crm Cd 3 Desc"] || "N/A"} (${d["Crm Cd 3"] || "-"})<br>
-        <b>Additional Crime 4:</b> ${d["Crm Cd 4 Desc"] || "N/A"} (${d["Crm Cd 4"] || "-"})<br>
-        <br>
         <b>ID:</b> ${d["DR_NO"] || "-"}
     `;
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────────
+// ── Area layer (polygon choropleth or bubble fallback) ─────────────────────────
 
-export function addMarkers(data) {
-    cluster.clearLayers();
-    data.forEach(d => {
-        if (d.LAT && d.LON) {
-            const marker = L.marker([d.LAT, d.LON]).bindPopup(createPopup(d));
-            cluster.addLayer(marker);
-        }
+let areaLayer  = null;
+let _maxCount  = 0;
+const _selected = new Set(); // selected area names
+const _featureLayers = new Map(); // areaName → Leaflet layer
+
+function lerpColor(hex1, hex2, t) {
+    const parse = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+    const [r1,g1,b1] = parse(hex1);
+    const [r2,g2,b2] = parse(hex2);
+    const r = Math.round(r1 + (r2 - r1) * t).toString(16).padStart(2, '0');
+    const g = Math.round(g1 + (g2 - g1) * t).toString(16).padStart(2, '0');
+    const b = Math.round(b1 + (b2 - b1) * t).toString(16).padStart(2, '0');
+    return `#${r}${g}${b}`;
+}
+
+function baseStyle(count) {
+    const t = _maxCount > 0 ? Math.sqrt(count / _maxCount) : 0;
+    return {
+        fillColor:   lerpColor('#fde8ea', '#c1121f', t),
+        fillOpacity: 0.65,
+        color:       '#ffffff',
+        weight:      2,
+    };
+}
+
+function applyLayerStyle(layer, name) {
+    const count = layer.feature?.properties?._count || 0;
+    const style = baseStyle(count);
+    if (_selected.has(name)) {
+        layer.setStyle({ ...style, fillOpacity: 0, color: '#1a73e8', weight: 3 });
+    } else {
+        layer.setStyle(style);
+    }
+}
+
+function tooltipText(name, count, isSelected) {
+    const c = count.toLocaleString();
+    if (isSelected) return `<b>${name}</b><br>${c} incidents<br><i>Click to deselect</i>`;
+    return `<b>${name}</b><br>${c} incidents<br><i>Click to load markers</i>`;
+}
+
+export function setAreaSelected(areaName, selected) {
+    if (selected) _selected.add(areaName);
+    else _selected.delete(areaName);
+
+    const layer = _featureLayers.get(areaName);
+    if (!layer) return;
+    applyLayerStyle(layer, areaName);
+
+    const count = layer.feature?.properties?._count || 0;
+    layer.bindTooltip(tooltipText(areaName, count, selected), { sticky: true });
+}
+
+export function initDivisionLayer(geojson, onClickArea) {
+    if (areaLayer) map.removeLayer(areaLayer);
+    _featureLayers.clear();
+
+    _maxCount = geojson.features.reduce((m, f) => Math.max(m, f.properties._count || 0), 0);
+
+    areaLayer = L.geoJSON(geojson, {
+        style: feat => baseStyle(feat.properties._count || 0),
+        onEachFeature(feat, layer) {
+            const name  = feat.properties._areaName || "Unknown";
+            const count = feat.properties._count    || 0;
+            _featureLayers.set(name, layer);
+
+            layer.bindTooltip(tooltipText(name, count, false, false), { sticky: true });
+            layer.on({
+                mouseover: e => e.target.setStyle({ fillOpacity: 0.85 }),
+                mouseout:  e => applyLayerStyle(e.target, name),
+                click:     () => onClickArea?.(name, layer.getBounds().getCenter()),
+            });
+        },
+    }).addTo(map);
+}
+
+export function initAreaLayer(areas, onClickArea) {
+    if (areaLayer) map.removeLayer(areaLayer);
+
+    const maxCount = Math.max(...areas.map(a => a.count));
+    const MIN_R = 14, MAX_R = 48;
+
+    const circles = areas.map(area => {
+        const t      = Math.sqrt(area.count / maxCount);
+        const r      = MIN_R + (MAX_R - MIN_R) * t;
+        const circle = L.circleMarker([area.lat, area.lon], {
+            radius:      r,
+            fillColor:   lerpColor('#fde8ea', '#c1121f', t),
+            fillOpacity: 0.65,
+            color:       '#c1121f',
+            weight:      2,
+        });
+        circle.bindTooltip(
+            `<b>${area.name}</b><br>${area.count.toLocaleString()} incidents<br><i>Click to load markers</i>`,
+            { direction: 'top', sticky: false }
+        );
+        circle.on('click', () => onClickArea?.(area.name, L.latLng(area.lat, area.lon)));
+        return circle;
     });
-    if (!map.hasLayer(cluster)) map.addLayer(cluster);
+
+    areaLayer = L.layerGroup(circles).addTo(map);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+export function getBounds() {
+    const b = map.getBounds();
+    return {
+        minLat: b.getSouth(),
+        maxLat: b.getNorth(),
+        minLon: b.getWest(),
+        maxLon: b.getEast(),
+    };
 }
