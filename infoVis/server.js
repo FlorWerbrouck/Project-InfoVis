@@ -1,13 +1,34 @@
-const express      = require("express");
-const fs           = require("fs");
-const compression  = require("compression");
-const app          = express();
+const express         = require("express");
+const fs              = require("fs");
+const compression     = require("compression");
+const { chain }       = require("stream-chain");
+const { parser }      = require("stream-json");
+const { streamArray } = require("stream-json/streamers/stream-array.js");
 
+const app = express();
 app.use(compression());
 app.use(express.static("."));
 
+// ── Stream-parse data.json to avoid ERR_STRING_TOO_LONG on large files ─────────
+
+function loadData() {
+    return new Promise((resolve, reject) => {
+        const records = [];
+        const pipeline = chain([
+            fs.createReadStream("data.json"),
+            parser(),
+            streamArray(),
+        ]);
+        pipeline.on("data",  ({ value }) => records.push(value));
+        pipeline.on("end",   () => resolve(records));
+        pipeline.on("error", reject);
+    });
+}
+
+(async () => {
+
 console.log("Parsing data…");
-const crimeData = JSON.parse(fs.readFileSync("data.json"));
+const crimeData = await loadData();
 console.log(`Loaded ${crimeData.length.toLocaleString()} records. Computing aggregates…`);
 
 // ── Single-pass aggregation at startup ────────────────────────────────────────
@@ -162,3 +183,5 @@ app.get("/data", (req, res) => {
 
 const PORT = 3000;
 app.listen(PORT, () => console.log(`Server at http://localhost:${PORT}`));
+
+})();
