@@ -1,93 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-   
     <title>LA Crime Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
-    <style>
-          body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-
-    #map {
-      height: 500px;
-      margin-bottom: 20px;
-    }
-
-    #charts {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-
-    .chart {
-      flex: 1;
-      min-width: 400px;
-      height: 400px;
-    }
-
-    #loading-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(255, 255, 255, 0.85);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-
-    #loading-overlay p {
-      font-size: 1.1rem;
-      margin-bottom: 16px;
-      color: #333;
-    }
-
-    #loading-bar-track {
-      width: 300px;
-      height: 8px;
-      background: #ddd;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    #loading-bar-fill {
-      height: 100%;
-      width: 40%;
-      background: #e63946;
-      border-radius: 4px;
-      animation: slide 1.2s ease-in-out infinite;
-    }
-
-    @keyframes slide {
-      0%   { transform: translateX(-100%); }
-      100% { transform: translateX(850%); }
-    }
-    </style>
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div id="loading-overlay">
-      <p>Loading crime data&hellip;</p>
-      <div id="loading-bar-track">
-        <div id="loading-bar-fill"></div>
-      </div>
-    </div>
 
+<div id="loading-overlay">
+    <p>Loading crime data&hellip;</p>
+    <div id="loading-bar-track"><div id="loading-bar-fill"></div></div>
+</div>
+
+<header id="header">
+    <button id="sidebar-toggle-btn" title="Toggle sidebar">&#9776;</button>
     <h1>LA Crime Dashboard</h1>
-    <div id="map"></div>
- <div id="charts">
-    <div id="crimeBar" class="chart"></div>
-    <div id="crimeOverTime" class="chart"></div>
-  </div>
+    <div id="search-bar">
+        <input id="search-input" type="text" placeholder="Search address, DR_NO, crime type&hellip;" />
+        <button id="search-btn">Search</button>
+    </div>
+</header>
 
-  
-    <script src="dashboard.js"></script></body>
+<div id="main">
+    <aside id="sidebar">
+
+        <div class="sb-section">
+            <div class="sb-section-hdr open" data-target="sb-filters">
+                Filters <span class="caret">&#9660;</span>
+            </div>
+            <div class="sb-section-body" id="sb-filters">
+                <div class="filter-group">
+                    <label>Date range</label>
+                    <div class="range-row">
+                        <input type="date" id="filter-date-from" />
+                        <span>&ndash;</span>
+                        <input type="date" id="filter-date-to" />
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>Crime type</label>
+                    <select id="filter-crime-type"><option value="">All types</option></select>
+                </div>
+                <div class="filter-group">
+                    <label>Area / District</label>
+                    <select id="filter-area"><option value="">All areas</option></select>
+                </div>
+                <div class="filter-group">
+                    <label>Victim gender</label>
+                    <select id="filter-gender">
+                        <option value="">All</option>
+                        <option value="M">Male</option>
+                        <option value="F">Female</option>
+                        <option value="X">Unknown / Other</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Victim age</label>
+                    <div class="range-row">
+                        <input type="number" id="filter-age-min" placeholder="0" min="0" max="120" />
+                        <span>&ndash;</span>
+                        <input type="number" id="filter-age-max" placeholder="120" min="0" max="120" />
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>Status</label>
+                    <select id="filter-status"><option value="">All statuses</option></select>
+                </div>
+                <button class="btn-primary" id="apply-filters-btn">Apply filters</button>
+                <button class="btn-ghost"   id="reset-filters-btn">Reset</button>
+            </div>
+        </div>
+
+        <div class="sb-section">
+            <div class="sb-section-hdr open" data-target="sb-map-ctrl">
+                Map controls <span class="caret">&#9660;</span>
+            </div>
+            <div class="sb-section-body" id="sb-map-ctrl">
+                <button class="map-ctrl-btn" id="btn-heatmap">&#127777;&#65039; Heatmap</button>
+                <button class="map-ctrl-btn" id="btn-draw-region">&#9998;&#65039; Draw region</button>
+                <button class="map-ctrl-btn" id="btn-clear-region">&#10005; Clear region</button>
+            </div>
+        </div>
+
+    </aside>
+
+    <div id="content">
+        <div id="map"></div>
+
+        <div id="bottom-panel">
+            <div id="panel-tab-bar">
+                <div class="panel-tab active" data-pane="pane-stats">Stats</div>
+                <div class="panel-tab" data-pane="pane-trends">Trends over time</div>
+                <div class="panel-tab" data-pane="pane-correlations">Correlations</div>
+                <button id="panel-collapse-btn">&#9660;</button>
+            </div>
+
+            <div class="panel-pane active" id="pane-stats">
+                <div class="stat-cards">
+                    <div class="stat-card">
+                        <div class="val" id="stat-total">&#8212;</div>
+                        <div class="lbl">Total incidents</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-filtered">&#8212;</div>
+                        <div class="lbl">Shown / filtered</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-top-crime">&#8212;</div>
+                        <div class="lbl">Top crime type</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-top-area">&#8212;</div>
+                        <div class="lbl">Top area</div>
+                    </div>
+                </div>
+                <div class="vr"></div>
+                <div id="chart-bar" class="chart-placeholder">Bar chart &mdash; crime type breakdown</div>
+            </div>
+
+            <div class="panel-pane" id="pane-trends">
+                <div id="chart-trends" class="chart-placeholder">Line chart &mdash; crimes over time</div>
+            </div>
+
+            <div class="panel-pane" id="pane-correlations">
+                <div id="chart-corr" class="chart-placeholder">Correlation explorer &mdash; crime &times; age / gender / descent</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
 </html>
