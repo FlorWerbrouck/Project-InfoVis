@@ -84,5 +84,9 @@ fetch("/data")
             }
         });
         map.addLayer(cluster);
+        document.getElementById("loading-overlay").style.display = "none";
     })
-    .catch(err => console.error("Error loading data:", err));
+    .catch(err => {
+        console.error("Error loading data:", err);
+        document.getElementById("loading-overlay").style.display = "none";
+    });

@@ -32,9 +32,55 @@
       flex: 1;
       min-width: 400px;
       height: 400px;
-    }    </style>
+    }
+
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    #loading-overlay p {
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      color: #333;
+    }
+
+    #loading-bar-track {
+      width: 300px;
+      height: 8px;
+      background: #ddd;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    #loading-bar-fill {
+      height: 100%;
+      width: 40%;
+      background: #e63946;
+      border-radius: 4px;
+      animation: slide 1.2s ease-in-out infinite;
+    }
+
+    @keyframes slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(850%); }
+    }
+    </style>
 </head>
 <body>
+    <div id="loading-overlay">
+      <p>Loading crime data&hellip;</p>
+      <div id="loading-bar-track">
+        <div id="loading-bar-fill"></div>
+      </div>
+    </div>
+
     <h1>LA Crime Dashboard</h1>
     <div id="map"></div>
  <div id="charts">
