@@ -160,7 +160,12 @@ export function initDivisionLayer(geojson, onClickArea) {
 
             layer.bindTooltip(tooltipText(name, count, false, false), { sticky: true });
             layer.on({
-                mouseover: e => e.target.setStyle({ fillOpacity: 0.85 }),
+                mouseover: e => {
+                    if (_selected.has(name))
+                        e.target.setStyle({ color: '#0a4fa6', weight: 4 });
+                    else
+                        e.target.setStyle({ fillOpacity: 0.85 });
+                },
                 mouseout:  e => applyLayerStyle(e.target, name),
                 click:     () => onClickArea?.(name, layer.getBounds().getCenter()),
             });
