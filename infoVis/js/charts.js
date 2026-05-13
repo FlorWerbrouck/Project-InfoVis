@@ -39,7 +39,109 @@ export function updateAreaStats(totalRecords, topCrime, topArea) {
     document.getElementById("stat-top-area").textContent = topArea ?? "—";
 }
 
+// ── Trends Chart (crimes over time) ───────────────────────────────────────────
+
+let trendsChart = null;
+
+export function renderTrends(data) {
+    const container = document.getElementById("chart-trends");
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = "<p style='text-align: center; color: #999; padding: 20px;'>No data to display</p>";
+        return;
+    }
+
+    // Aggregate crimes by month
+    const byMonth = {};
+    data.forEach(d => {
+        const date = d["DateTime OCC"]?.slice(0, 7); // Extract YYYY-MM
+        if (date) {
+            byMonth[date] = (byMonth[date] || 0) + 1;
+        }
+    });
+
+    // Sort by month and prepare chart data
+    const sortedMonths = Object.keys(byMonth).sort();
+    const counts = sortedMonths.map(month => byMonth[month]);
+
+    // Extract years for X-axis labels (show year only when it changes)
+    const labels = sortedMonths.map((month, index) => {
+        const year = month.slice(0, 4);
+        const prevYear = index > 0 ? sortedMonths[index - 1].slice(0, 4) : null;
+        return year !== prevYear ? year : "";
+    });
+
+    // Ensure container has a canvas
+    if (!container.querySelector("canvas")) {
+        container.innerHTML = "<canvas></canvas>";
+    }
+
+    const ctx = container.querySelector("canvas").getContext("2d");
+
+    // Destroy existing chart if any
+    if (trendsChart) {
+        trendsChart.destroy();
+    }
+
+    trendsChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: "Crimes per month",
+                    data: counts,
+                    borderColor: "#e74c3c",
+                    backgroundColor: "rgba(231, 76, 60, 0.15)",
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: "#e74c3c",
+                    pointBorderColor: "#fff",
+                    pointBorderWidth: 2,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: "Crimes per Month", font: { size: 16, weight: "bold" } },
+                tooltip: {
+                    backgroundColor: "rgba(0, 0, 0, 0.8)",
+                    padding: 12,
+                    titleFont: { size: 14, weight: "bold" },
+                    bodyFont: { size: 13 },
+                    cornerRadius: 4,
+                    callbacks: {
+                        title: function(context) {
+                            return "Month: " + sortedMonths[context[0].dataIndex];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: "Date", font: { size: 12 } },
+                    ticks: {
+                        maxRotation: 0,
+                        minRotation: 0,
+                        font: { size: 11 }
+                    }
+                },
+                y: {
+                    title: { display: true, text: "Number of Crimes", font: { size: 12 } },
+                    beginAtZero: true,
+                    ticks: { font: { size: 11 } }
+                }
+            }
+        }
+    });
+}
+
 // Placeholders — implement with a charting library (e.g. Plotly, Chart.js)
 export function renderBarChart(data) {}
-export function renderTrends(data) {}
 export function renderCorrelations(data) {}

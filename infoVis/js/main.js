@@ -4,7 +4,7 @@ import { map, addMarkersForArea, removeMarkersForArea,
 import { initUI }                                        from './ui.js';
 import { buildFilterOptions, getFilterParams,
          fetchData, resetFilters }                       from './filters.js';
-import { updateStats, updateAreaStats }                  from './charts.js';
+import { updateStats, updateAreaStats, renderTrends } from './charts.js';
 
 initUI();
 
@@ -27,6 +27,7 @@ function setMapLoading(on) {
 function refreshStats() {
     if (selectedAreas.size === 0) {
         updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
+        renderTrends([]);
         return;
     }
     let totalMatching = 0;
@@ -35,6 +36,7 @@ function refreshStats() {
         if (data) { allData.push(...data); totalMatching += (tm || 0); }
     }
     updateStats(totalRecords, totalMatching, allData);
+    renderTrends(allData);
 }
 
 // ── Region selection ───────────────────────────────────────────────────────────
