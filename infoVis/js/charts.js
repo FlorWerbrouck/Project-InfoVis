@@ -142,6 +142,103 @@ export function renderTrends(data) {
     });
 }
 
+// ── Bar Chart (crime type breakdown) ──────────────────────────────────────────
+
+let barChart = null;
+
+export function renderBarChart(data) {
+    const container = document.getElementById("chart-bar");
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = "<p style='text-align: center; color: #999; padding: 20px;'>No data to display</p>";
+        return;
+    }
+
+    // Aggregate crimes by type
+    const byCrime = {};
+    data.forEach(d => {
+        const crime = d["Crm Cd Desc"];
+        if (crime) {
+            byCrime[crime] = (byCrime[crime] || 0) + 1;
+        }
+    });
+
+    // Sort by frequency descending and take top 10
+    const sorted = Object.entries(byCrime)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+    const crimes = sorted.map(([name]) => name);
+    const counts = sorted.map(([, count]) => count);
+    
+    // Truncate labels for display (max 30 chars)
+    const labels = crimes.map(crime => crime.length > 30 ? crime.slice(0, 27) + "…" : crime);
+
+    // Ensure container has a canvas
+    if (!container.querySelector("canvas")) {
+        container.innerHTML = "<canvas></canvas>";
+    }
+
+    const ctx = container.querySelector("canvas").getContext("2d");
+
+    // Destroy existing chart if any
+    if (barChart) {
+        barChart.destroy();
+    }
+
+    barChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: "Number of crimes",
+                    data: counts,
+                    backgroundColor: "#e74c3c",
+                    borderColor: "#c0392b",
+                    borderWidth: 1,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: "Top 10 Crime Types", font: { size: 16, weight: "bold" } },
+                tooltip: {
+                    backgroundColor: "rgba(0, 0, 0, 0.8)",
+                    padding: 12,
+                    titleFont: { size: 14, weight: "bold" },
+                    bodyFont: { size: 13 },
+                    cornerRadius: 4,
+                    callbacks: {
+                        title: function(context) {
+                            return crimes[context[0].dataIndex];
+                        },
+                        label: function(context) {
+                            return "Crimes: " + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 0,
+                        font: { size: 9 }
+                    }
+                },
+                y: {
+                    title: { display: true, text: "Number of Crimes", font: { size: 12 } },
+                    beginAtZero: true,
+                    ticks: { font: { size: 11 } }
+                }
+            }
+        }
+    });
+}
+
 // Placeholders — implement with a charting library (e.g. Plotly, Chart.js)
-export function renderBarChart(data) {}
 export function renderCorrelations(data) {}
