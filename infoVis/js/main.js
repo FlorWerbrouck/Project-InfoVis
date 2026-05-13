@@ -33,11 +33,22 @@ function setTrendsLoading(on) {
 
 // ── Stats ──────────────────────────────────────────────────────────────────────
 
-function refreshStats() {
+async function refreshStats() {
     if (selectedAreas.size === 0) {
         updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
-        renderTrends(initialData);
-        renderBarChart(initialData);
+        
+        // If filters are applied, fetch and show filtered data; otherwise show initial data
+        let chartData = initialData;
+        if (Object.keys(currentFilters).length > 0) {
+            try {
+                const result = await fetchData(currentFilters);
+                chartData = result.data || [];
+            } catch (err) {
+                console.warn("Could not fetch filtered data for charts:", err);
+            }
+        }
+        renderTrends(chartData);
+        renderBarChart(chartData);
         return;
     }
     let totalMatching = 0;
@@ -179,6 +190,7 @@ let initialData = []; // Store full dataset for initial charts
 document.getElementById("apply-filters-btn").addEventListener("click", async () => {
     currentFilters = getFilterParams();
     await refreshSelectedAreas();
+    refreshStats(); // Update charts with new filters
 });
 
 document.getElementById("reset-filters-btn").addEventListener("click", () => {
@@ -191,11 +203,13 @@ document.getElementById("reset-filters-btn").addEventListener("click", () => {
 document.getElementById("search-btn").addEventListener("click", async () => {
     currentFilters = getFilterParams();
     await refreshSelectedAreas();
+    refreshStats(); // Update charts with new search
 });
 
 document.getElementById("search-input").addEventListener("keydown", async e => {
     if (e.key === "Enter") {
         currentFilters = getFilterParams();
         await refreshSelectedAreas();
+        refreshStats(); // Update charts with new search
     }
 });
