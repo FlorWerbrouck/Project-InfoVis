@@ -221,7 +221,7 @@ body {
 .panel-pane.active { display: flex; }
 
 /* Stats pane */
-.stat-cards { display: flex; gap: 10px; flex-shrink: 0; align-items: flex-start; flex-wrap: wrap; }
+.stat-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex-shrink: 0; align-items: flex-start; }
 
 .stat-card { background: #f8f9fa; border-radius: 6px; padding: 10px 14px; min-width: 100px; }
 .stat-card .val { font-size: 1.4rem; font-weight: bold; color: #e63946; line-height: 1.2; }
