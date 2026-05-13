@@ -22,13 +22,22 @@ function setMapLoading(on) {
     document.getElementById('map-loading').classList.toggle('hidden', !on);
 }
 
+function setChartsLoading(on) {
+    document.getElementById('charts-loading').classList.toggle('hidden', !on);
+}
+
+function setTrendsLoading(on) {
+    const el = document.getElementById('trends-loading');
+    if (el) el.classList.toggle('hidden', !on);
+}
+
 // ── Stats ──────────────────────────────────────────────────────────────────────
 
 function refreshStats() {
     if (selectedAreas.size === 0) {
         updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
-        renderTrends([]);
-        renderBarChart([]);
+        renderTrends(initialData);
+        renderBarChart(initialData);
         return;
     }
     let totalMatching = 0;
@@ -119,8 +128,13 @@ function deselectAll() {
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
 
+let initialData = []; // Store full dataset for initial charts
+
 (async () => {
     try {
+        setChartsLoading(true); // Show loading spinner for stats
+        setTrendsLoading(true); // Show loading spinner for trends
+        
         const [metadata, divRes] = await Promise.all([
             fetch("/metadata").then(r => r.json()),
             fetch("/divisions"),
@@ -137,11 +151,26 @@ function deselectAll() {
             initAreaLayer(areasData, toggleArea);
         }
 
+        // Fetch full dataset for initial charts
+        try {
+            const dataRes = await fetch("/data");
+            const dataJson = await dataRes.json();
+            initialData = dataJson.data || [];
+            renderTrends(initialData);
+            renderBarChart(initialData);
+        } catch (err) {
+            console.warn("Could not load initial data for charts:", err);
+        }
+
         refreshStats();
+        setChartsLoading(false); // Hide loading spinner for stats
+        setTrendsLoading(false); // Hide loading spinner for trends
         setTimeout(() => map.invalidateSize(), 0);
 
     } catch (err) {
         console.error("Boot error:", err);
+        setChartsLoading(false);
+        setTrendsLoading(false);
     }
 })();
 
