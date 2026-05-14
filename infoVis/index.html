@@ -20,7 +20,10 @@
     <button id="sidebar-toggle-btn" title="Toggle sidebar">&#9776;</button>
     <h1>LA Crime Dashboard</h1>
     <div id="search-bar">
-        <input id="search-input" type="text" placeholder="Search address, DR_NO, crime type&hellip;" />
+        <div id="search-container" style="flex: 1; position: relative;">
+            <input id="search-input" type="text" placeholder="Search address, DR_NO, crime type&hellip;" />
+            <div id="search-suggestions" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-top: none; max-height: 200px; overflow-y: auto; z-index: 1001; border-radius: 0 0 4px 4px;"></div>
+        </div>
         <button id="search-btn">Search</button>
     </div>
 </header>

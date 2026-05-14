@@ -202,6 +202,85 @@ let initialData = []; // Store full dataset for initial charts
     }
 })();
 
+// ── Search Autocomplete ────────────────────────────────────────────────────────
+
+const searchInput = document.getElementById("search-input");
+const searchSuggestions = document.getElementById("search-suggestions");
+
+searchInput.addEventListener("input", () => {
+    const query = searchInput.value.toLowerCase().trim();
+    
+    if (!query || query.length < 2) {
+        searchSuggestions.style.display = "none";
+        return;
+    }
+
+    // Collect unique suggestions from crime types and location/DR_NO from data
+    const suggestions = new Map(); // key -> { text, type }
+    
+    // Add crime types
+    if (globalMetadata?.crimeTypes) {
+        globalMetadata.crimeTypes.forEach(crimeType => {
+            if (crimeType.toLowerCase().includes(query)) {
+                suggestions.set(crimeType, { text: crimeType, type: "Crime Type" });
+            }
+        });
+    }
+    
+    // Add locations and DR_NOs from data
+    initialData.forEach(d => {
+        const location = (d["LOCATION"] || "").toLowerCase();
+        const drNo = String(d["DR_NO"] || "").toLowerCase();
+        
+        if (location.includes(query)) {
+            suggestions.set(location, { text: d["LOCATION"], type: "Location" });
+        }
+        if (drNo.includes(query) && d["DR_NO"]) {
+            suggestions.set(drNo, { text: String(d["DR_NO"]), type: "DR_NO" });
+        }
+    });
+
+    // Limit to top 8 suggestions
+    const items = Array.from(suggestions.values()).slice(0, 8);
+    
+    if (items.length === 0) {
+        searchSuggestions.style.display = "none";
+        return;
+    }
+    
+    // Populate dropdown
+    searchSuggestions.innerHTML = items.map(item => `
+        <div class="suggestion-item" data-value="${item.text}">
+            ${item.text}
+            <span class="suggestion-type">${item.type}</span>
+        </div>
+    `).join("");
+    
+    searchSuggestions.style.display = "block";
+    
+    // Add click handlers for suggestions
+    searchSuggestions.querySelectorAll(".suggestion-item").forEach(item => {
+        item.addEventListener("click", () => {
+            searchInput.value = item.getAttribute("data-value");
+            searchSuggestions.style.display = "none";
+        });
+    });
+});
+
+// Hide suggestions on blur
+searchInput.addEventListener("blur", () => {
+    setTimeout(() => {
+        searchSuggestions.style.display = "none";
+    }, 200); // Small delay to allow click to register
+});
+
+// Show suggestions on focus if input has text
+searchInput.addEventListener("focus", () => {
+    if (searchInput.value.length >= 2) {
+        searchInput.dispatchEvent(new Event("input"));
+    }
+});
+
 // ── Tab Switching ──────────────────────────────────────────────────────────────
 
 // Handle tab switching to ensure charts render properly when tabs become visible
