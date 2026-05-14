@@ -241,4 +241,261 @@ export function renderBarChart(data) {
 }
 
 // Placeholders — implement with a charting library (e.g. Plotly, Chart.js)
-export function renderCorrelations(data) {}
+let correlationCharts = {}; // Store chart instances for gender, descent, and age
+
+// Make correlationCharts globally accessible
+if (typeof window !== 'undefined') {
+    window.correlationCharts = correlationCharts;
+}
+
+// Descent code mapping
+const descentMapping = {
+    "A": "Other Asian",
+    "B": "Black",
+    "C": "Chinese",
+    "D": "Cambodian",
+    "F": "Filipino",
+    "G": "Guamanian",
+    "H": "Hispanic/Latin/Mexican",
+    "I": "American Indian/Alaskan Native",
+    "J": "Japanese",
+    "K": "Korean",
+    "L": "Laotian",
+    "O": "Other",
+    "P": "Pacific Islander",
+    "S": "Samoan",
+    "U": "Hawaiian",
+    "V": "Vietnamese",
+    "W": "White",
+    "X": "Unknown",
+    "Z": "Asian Indian"
+};
+
+export function renderCorrelations(data) {
+    if (!data || data.length === 0) {
+        document.getElementById("chart-corr-gender").innerHTML = "<p style='text-align: center; color: #999;'>No data</p>";
+        document.getElementById("chart-corr-descent").innerHTML = "<p style='text-align: center; color: #999;'>No data</p>";
+        document.getElementById("chart-corr-age").innerHTML = "<p style='text-align: center; color: #999;'>No data</p>";
+        return;
+    }
+
+    // Ensure canvases exist in placeholders
+    const genderContainer = document.getElementById("chart-corr-gender");
+    const descentContainer = document.getElementById("chart-corr-descent");
+    const ageContainer = document.getElementById("chart-corr-age");
+
+    if (!genderContainer.querySelector("canvas")) {
+        genderContainer.innerHTML = "<canvas></canvas>";
+    }
+    if (!descentContainer.querySelector("canvas")) {
+        descentContainer.innerHTML = "<canvas></canvas>";
+    }
+    if (!ageContainer.querySelector("canvas")) {
+        ageContainer.innerHTML = "<canvas></canvas>";
+    }
+
+    // Aggregate data for correlations
+    
+    // Gender correlations
+    const byGender = {};
+    const genderMap = { "M": "Male", "F": "Female", "X": "Unknown" };
+    data.forEach(d => {
+        const gender = genderMap[d["Vict Sex"]] || "Unknown";
+        byGender[gender] = (byGender[gender] || 0) + 1;
+    });
+
+    // Descent correlations
+    const byDescent = {};
+    data.forEach(d => {
+        const descentCode = d["Vict Descent"] || "X";
+        const descent = descentMapping[descentCode] || "Unknown";
+        byDescent[descent] = (byDescent[descent] || 0) + 1;
+    });
+
+    // Age correlations
+    const byAge = {};
+    data.forEach(d => {
+        const age = d["Vict Age"];
+        if (age != null && age >= 0 && age <= 120) {
+            byAge[age] = (byAge[age] || 0) + 1;
+        }
+    });
+
+    // Render gender chart
+    try {
+        renderCorrelationChart(
+            "chart-corr-gender",
+            Object.keys(byGender),
+            Object.values(byGender),
+            "Crimes by Victim Gender",
+            "crimesGender"
+        );
+    } catch (err) {
+        console.error("Error rendering gender chart:", err);
+    }
+
+    // Render descent chart
+    const descentSorted = Object.entries(byDescent)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8);
+    
+    try {
+        renderCorrelationChart(
+            "chart-corr-descent",
+            descentSorted.map(([k]) => k),
+            descentSorted.map(([, v]) => v),
+            "Top Crime Descents",
+            "crimesDescent"
+        );
+    } catch (err) {
+        console.error("Error rendering descent chart:", err);
+    }
+
+    // Render age chart - create continuous data from 0 to 120
+    const ageData = [];
+    for (let i = 0; i <= 120; i++) {
+        ageData.push({
+            age: i,
+            count: byAge[i] || 0
+        });
+    }
+    
+    try {
+        const ageContainer = document.getElementById("chart-corr-age");
+        if (!ageContainer) {
+            console.warn("Container with id 'chart-corr-age' not found");
+        } else {
+            let ageCanvas = ageContainer.querySelector("canvas");
+            if (!ageCanvas) {
+                ageContainer.innerHTML = "<canvas></canvas>";
+                ageCanvas = ageContainer.querySelector("canvas");
+            }
+            const ageCtx = ageCanvas.getContext("2d");
+            if (correlationCharts.age) {
+                correlationCharts.age.destroy();
+            }
+            
+            correlationCharts.age = new Chart(ageCtx, {
+        type: "line",
+        data: {
+            labels: ageData.map(d => d.age),
+            datasets: [
+                {
+                    label: "Crimes per age",
+                    data: ageData.map(d => d.count),
+                    borderColor: "#e74c3c",
+                    backgroundColor: "rgba(231, 76, 60, 0.15)",
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: "Crimes by Victim Age", font: { size: 14, weight: "bold" } },
+                tooltip: {
+                    backgroundColor: "rgba(0, 0, 0, 0.8)",
+                    padding: 10,
+                    titleFont: { size: 12, weight: "bold" },
+                    bodyFont: { size: 11 },
+                    cornerRadius: 4,
+                }
+            },
+            scales: {
+                x: {
+                    type: "linear",
+                    position: "bottom",
+                    ticks: {
+                        stepSize: 10,
+                        font: { size: 9 }
+                    },
+                    title: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { font: { size: 10 } }
+                }
+            }
+        }
+            });
+        }
+    } catch (err) {
+        console.error("Error rendering age chart:", err);
+    }
+}
+
+function renderCorrelationChart(canvasId, labels, data, title, chartKey) {
+    const container = document.getElementById(canvasId);
+    if (!container) {
+        console.warn(`Container with id "${canvasId}" not found`);
+        return;
+    }
+    
+    let canvas = container.querySelector("canvas");
+    if (!canvas) {
+        container.innerHTML = "<canvas></canvas>";
+        canvas = container.querySelector("canvas");
+    }
+    
+    const ctx = canvas.getContext("2d");
+    
+    if (correlationCharts[chartKey]) {
+        correlationCharts[chartKey].destroy();
+    }
+    
+    correlationCharts[chartKey] = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: title,
+                    data: data,
+                    backgroundColor: "#e74c3c",
+                    borderColor: "#c0392b",
+                    borderWidth: 1,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: title, font: { size: 14, weight: "bold" } },
+                tooltip: {
+                    backgroundColor: "rgba(0, 0, 0, 0.8)",
+                    padding: 10,
+                    titleFont: { size: 12, weight: "bold" },
+                    bodyFont: { size: 11 },
+                    cornerRadius: 4,
+                    callbacks: {
+                        label: function(context) {
+                            return "Count: " + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 0,
+                        minRotation: 0,
+                        font: { size: 8 },
+                        autoSkip: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { font: { size: 10 } }
+                }
+            }
+        }
+    });
+}

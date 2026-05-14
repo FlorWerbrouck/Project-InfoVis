@@ -4,7 +4,7 @@ import { map, addMarkersForArea, removeMarkersForArea,
 import { initUI }                                        from './ui.js';
 import { buildFilterOptions, getFilterParams,
          fetchData, resetFilters }                       from './filters.js';
-import { updateStats, updateAreaStats, renderTrends, renderBarChart } from './charts.js';
+import { updateStats, updateAreaStats, renderTrends, renderBarChart, renderCorrelations } from './charts.js';
 
 initUI();
 
@@ -31,6 +31,11 @@ function setTrendsLoading(on) {
     if (el) el.classList.toggle('hidden', !on);
 }
 
+function setCorrelationsLoading(on) {
+    const el = document.getElementById('corr-loading');
+    if (el) el.classList.toggle('hidden', !on);
+}
+
 // ── Stats ──────────────────────────────────────────────────────────────────────
 
 async function refreshStats() {
@@ -39,6 +44,8 @@ async function refreshStats() {
         
         // If filters are applied, fetch and show filtered data; otherwise show initial data
         let chartData = initialData;
+        const hasFilters = Object.keys(currentFilters).length > 0;
+        
         if (Object.keys(currentFilters).length > 0) {
             try {
                 const result = await fetchData(currentFilters);
@@ -47,18 +54,23 @@ async function refreshStats() {
                 console.warn("Could not fetch filtered data for charts:", err);
             }
         }
+        
         renderTrends(chartData);
         renderBarChart(chartData);
+        renderCorrelations(chartData);
         return;
     }
+    
     let totalMatching = 0;
     const allData = [];
     for (const { data, totalMatching: tm } of selectedAreas.values()) {
         if (data) { allData.push(...data); totalMatching += (tm || 0); }
     }
+    
     updateStats(totalRecords, totalMatching, allData);
     renderTrends(allData);
     renderBarChart(allData);
+    renderCorrelations(allData);
 }
 
 // ── Region selection ───────────────────────────────────────────────────────────
@@ -145,6 +157,7 @@ let initialData = []; // Store full dataset for initial charts
     try {
         setChartsLoading(true); // Show loading spinner for stats
         setTrendsLoading(true); // Show loading spinner for trends
+        setCorrelationsLoading(true); // Show loading spinner for correlations
         
         const [metadata, divRes] = await Promise.all([
             fetch("/metadata").then(r => r.json()),
@@ -167,23 +180,56 @@ let initialData = []; // Store full dataset for initial charts
             const dataRes = await fetch("/data");
             const dataJson = await dataRes.json();
             initialData = dataJson.data || [];
+            
             renderTrends(initialData);
             renderBarChart(initialData);
+            renderCorrelations(initialData);
         } catch (err) {
             console.warn("Could not load initial data for charts:", err);
         }
 
-        refreshStats();
+        await refreshStats();
         setChartsLoading(false); // Hide loading spinner for stats
         setTrendsLoading(false); // Hide loading spinner for trends
+        setCorrelationsLoading(false); // Hide loading spinner for correlations
         setTimeout(() => map.invalidateSize(), 0);
 
     } catch (err) {
         console.error("Boot error:", err);
         setChartsLoading(false);
         setTrendsLoading(false);
+        setCorrelationsLoading(false);
     }
 })();
+
+// ── Tab Switching ──────────────────────────────────────────────────────────────
+
+// Handle tab switching to ensure charts render properly when tabs become visible
+document.querySelectorAll(".panel-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+        const paneId = tab.getAttribute("data-pane");
+        
+        // If correlations tab is clicked, re-render correlations to ensure they display properly
+        if (paneId === "pane-correlations") {
+            // Get current chart data
+            let chartData = initialData;
+            if (selectedAreas.size > 0) {
+                const allData = [];
+                for (const { data, totalMatching: tm } of selectedAreas.values()) {
+                    if (data) allData.push(...data);
+                }
+                chartData = allData.length > 0 ? allData : initialData;
+            } else if (Object.keys(currentFilters).length > 0) {
+                // If filters are applied but no areas selected, use initialData
+                // (filtered data is only available during filter application)
+                chartData = initialData;
+            }
+            
+            // Re-render correlations
+            renderCorrelations(chartData);
+        }
+    });
+});
 
 // ── Controls ───────────────────────────────────────────────────────────────────
 

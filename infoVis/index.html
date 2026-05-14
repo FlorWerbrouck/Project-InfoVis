@@ -125,7 +125,7 @@
                     </div>
                 </div>
                 <div class="vr"></div>
-                <div id="chart-bar" class="chart-placeholder">Bar chart &mdash; crime type breakdown</div>
+                <div id="chart-bar" class="chart-placeholder"></div>
             </div>
 
             <div class="panel-pane" id="pane-trends">
@@ -133,11 +133,19 @@
                     <div class="charts-loading-spinner"></div>
                     <div class="charts-loading-text">Loading chart…</div>
                 </div>
-                <div id="chart-trends" class="chart-placeholder">Line chart &mdash; crimes over time</div>
+                <div id="chart-trends" class="chart-placeholder"></div>
             </div>
 
             <div class="panel-pane" id="pane-correlations">
-                <div id="chart-corr" class="chart-placeholder">Correlation explorer &mdash; crime &times; age / gender / descent</div>
+                <div id="corr-loading" class="charts-loading">
+                    <div class="charts-loading-spinner"></div>
+                    <div class="charts-loading-text">Loading charts…</div>
+                </div>
+                <div id="chart-corr" style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 16px; flex: 1; min-height: 0; width: 100%;">
+                    <div id="chart-corr-gender" class="chart-placeholder"></div>
+                    <div id="chart-corr-descent" class="chart-placeholder"></div>
+                    <div id="chart-corr-age" class="chart-placeholder"></div>
+                </div>
             </div>
         </div>
     </div>
