@@ -323,12 +323,18 @@ export function renderCorrelations(data) {
 
     // Render gender chart
     try {
+        const genderOrder = ["Male", "Female", "Unknown"];
+        const genderLabels = genderOrder.filter(g => g in byGender);
+        const genderCounts = genderLabels.map(g => byGender[g]);
+        const genderTotal = genderCounts.reduce((a, b) => a + b, 0);
+        const genderPercentages = genderCounts.map(count => (count / genderTotal) * 100);
         renderCorrelationChart(
             "chart-corr-gender",
-            Object.keys(byGender),
-            Object.values(byGender),
+            genderLabels,
+            genderPercentages,
             "Crimes by Victim Gender",
-            "crimesGender"
+            "crimesGender",
+            genderCounts
         );
     } catch (err) {
         console.error("Error rendering gender chart:", err);
@@ -340,25 +346,46 @@ export function renderCorrelations(data) {
         .slice(0, 8);
     
     try {
+        const descentCounts = descentSorted.map(([, v]) => v);
+        const descentTotal = descentCounts.reduce((a, b) => a + b, 0);
+        const descentPercentages = descentCounts.map(count => (count / descentTotal) * 100);
         renderCorrelationChart(
             "chart-corr-descent",
             descentSorted.map(([k]) => k),
-            descentSorted.map(([, v]) => v),
+            descentPercentages,
             "Top Crime Descents",
-            "crimesDescent"
+            "crimesDescent",
+            descentCounts
         );
     } catch (err) {
         console.error("Error rendering descent chart:", err);
     }
 
-    // Render age chart - create continuous data from 0 to 120
-    const ageData = [];
-    for (let i = 0; i <= 120; i++) {
-        ageData.push({
-            age: i,
-            count: byAge[i] || 0
-        });
-    }
+    // Render age chart - create age buckets
+    const ageBuckets = {
+        "0-10": 0,
+        "10-20": 0,
+        "20-30": 0,
+        "30-40": 0,
+        "40-50": 0,
+        "50-60": 0,
+        "60-70": 0,
+        "70+": 0
+    };
+    
+    data.forEach(d => {
+        const age = d["Vict Age"];
+        if (age != null && age >= 0) {
+            if (age < 10) ageBuckets["0-10"]++;
+            else if (age < 20) ageBuckets["10-20"]++;
+            else if (age < 30) ageBuckets["20-30"]++;
+            else if (age < 40) ageBuckets["30-40"]++;
+            else if (age < 50) ageBuckets["40-50"]++;
+            else if (age < 60) ageBuckets["50-60"]++;
+            else if (age < 70) ageBuckets["60-70"]++;
+            else ageBuckets["70+"]++;
+        }
+    });
     
     try {
         const ageContainer = document.getElementById("chart-corr-age");
@@ -375,21 +402,21 @@ export function renderCorrelations(data) {
                 correlationCharts.age.destroy();
             }
             
+            const ageCounts = Object.values(ageBuckets);
+            const ageTotal = ageCounts.reduce((a, b) => a + b, 0);
+            const agePercentages = ageCounts.map(count => ageTotal > 0 ? (count / ageTotal) * 100 : 0);
+            
             correlationCharts.age = new Chart(ageCtx, {
-        type: "line",
+        type: "bar",
         data: {
-            labels: ageData.map(d => d.age),
+            labels: Object.keys(ageBuckets),
             datasets: [
                 {
-                    label: "Crimes per age",
-                    data: ageData.map(d => d.count),
-                    borderColor: "#e74c3c",
-                    backgroundColor: "rgba(231, 76, 60, 0.15)",
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 0,
-                    pointHoverRadius: 0,
+                    label: "Crimes per age group",
+                    data: agePercentages,
+                    backgroundColor: "#e74c3c",
+                    borderColor: "#c0392b",
+                    borderWidth: 1,
                 }
             ]
         },
@@ -398,28 +425,36 @@ export function renderCorrelations(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
-                title: { display: true, text: "Crimes by Victim Age", font: { size: 14, weight: "bold" } },
+                title: { display: true, text: "Crimes by Victim Age Group", font: { size: 14, weight: "bold" } },
                 tooltip: {
                     backgroundColor: "rgba(0, 0, 0, 0.8)",
                     padding: 10,
                     titleFont: { size: 12, weight: "bold" },
                     bodyFont: { size: 11 },
                     cornerRadius: 4,
+                    callbacks: {
+                        label: function(context) {
+                            const percentage = context.parsed.y.toFixed(2);
+                            const count = ageCounts[context.dataIndex];
+                            return `Percentage: ${percentage}% | Count: ${count.toLocaleString()}`;
+                        }
+                    }
                 }
             },
             scales: {
                 x: {
-                    type: "linear",
-                    position: "bottom",
                     ticks: {
-                        stepSize: 10,
-                        font: { size: 9 }
+                        maxRotation: 0,
+                        minRotation: 0,
+                        font: { size: 10 },
+                        autoSkip: false
                     },
                     title: { display: false }
                 },
                 y: {
                     beginAtZero: true,
-                    ticks: { font: { size: 10 } }
+                    ticks: { font: { size: 10 } },
+                    title: { display: true, text: "Percentage (%)", font: { size: 12 } }
                 }
             }
         }
@@ -430,7 +465,7 @@ export function renderCorrelations(data) {
     }
 }
 
-function renderCorrelationChart(canvasId, labels, data, title, chartKey) {
+function renderCorrelationChart(canvasId, labels, data, title, chartKey, originalCounts) {
     const container = document.getElementById(canvasId);
     if (!container) {
         console.warn(`Container with id "${canvasId}" not found`);
@@ -477,7 +512,9 @@ function renderCorrelationChart(canvasId, labels, data, title, chartKey) {
                     cornerRadius: 4,
                     callbacks: {
                         label: function(context) {
-                            return "Count: " + context.parsed.y.toLocaleString();
+                            const percentage = context.parsed.y.toFixed(2);
+                            const count = originalCounts ? originalCounts[context.dataIndex] : context.parsed.y;
+                            return `Percentage: ${percentage}% | Count: ${count.toLocaleString()}`;
                         }
                     }
                 }
@@ -493,7 +530,8 @@ function renderCorrelationChart(canvasId, labels, data, title, chartKey) {
                 },
                 y: {
                     beginAtZero: true,
-                    ticks: { font: { size: 10 } }
+                    ticks: { font: { size: 10 } },
+                    title: { display: true, text: "Percentage (%)", font: { size: 12 } }
                 }
             }
         }
