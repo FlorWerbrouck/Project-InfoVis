@@ -23,8 +23,12 @@ const descentMapping = {
     "Z": "Asian Indian"
 };
 
-export const map = L.map('map', { continuousWorld: false, attributionControl: false });
+export const map = L.map('map', { fullscreenControl: true, worldCopyJump: false, attributionControl: false });
 L.control.attribution({ position: 'bottomleft' }).addTo(map);
+
+L.control.locate().addTo(map);
+new L.Control.Geocoder().addTo(map);
+document.querySelector('.leaflet-control-geocoder-form input').placeholder = "Search address...";
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -41,7 +45,8 @@ const cartoPositronD = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{
     detectRetina: true,
 });
 
-map.setView([34.05, -118.25], 10);
+var la = [34.05, -118.25];
+map.setView(la, 10);
 
 L.control.layers(
     { "OpenStreetMap": osm, "Carto Light": cartoPositron, "Carto Dark": cartoPositronD },
@@ -55,6 +60,17 @@ const cluster = L.markerClusterGroup({
     showCoverageOnHover: true,
     zoomToBoundsOnClick: true,
 }).addTo(map);
+
+L.easyButton({
+    states: [{
+    stateName: 'zoom-to-la', 
+      icon: '<i class="bi bi-crosshair2"></i>',  // Bootstrap icon or emoji
+      title: 'Center LA',                 // Tooltip when hovering
+      onClick: function(btn, map) {
+        map.setView(la, 10);
+      }
+    }]
+  }).addTo(map);
 
 // ── Per-area marker management ─────────────────────────────────────────────────
 
