@@ -181,6 +181,84 @@ app.get("/data", (req, res) => {
     res.json({ totalMatching, data });
 });
 
+
+app.get("/coordinates", (req, res) => {
+    const data = [];
+
+    if (Object.keys(req.query).length === 0) {
+        return res.json(
+            crimeData.map(d => ({
+                longitude: d.LON,
+                latitude: d.LAT,
+                id: d.DR_NO
+            }))
+        );
+    }
+
+    const { crimeType, area, gender, status, ageMin, ageMax,
+            dateFrom, dateTo, q, minLat, maxLat, minLon, maxLon } = req.query;
+
+    const hasBbox  = minLat !== undefined;
+    const bMinLat  = hasBbox ? +minLat : 0;
+    const bMaxLat  = hasBbox ? +maxLat : 0;
+    const bMinLon  = hasBbox ? +minLon : 0;
+    const bMaxLon  = hasBbox ? +maxLon : 0;
+    const search   = q ? q.toLowerCase() : null;
+
+
+    for (const d of crimeData) {
+        // Bounding box (required when zoomed in)
+        if (hasBbox) {
+            if (!d.LAT || !d.LON) continue;
+            if (d.LAT < bMinLat || d.LAT > bMaxLat ||
+                d.LON < bMinLon || d.LON > bMaxLon) continue;
+        }
+
+        // Attribute filters
+        if (crimeType && d["Crm Cd Desc"] !== crimeType) continue;
+        if (area      && d["AREA NAME"]   !== area)      continue;
+        if (gender    && d["Vict Sex"]    !== gender)    continue;
+        if (status    && d["Status Desc"] !== status)    continue;
+
+        const age = d["Vict Age"];
+        if (ageMin && (age == null || age < +ageMin)) continue;
+        if (ageMax && (age == null || age > +ageMax)) continue;
+
+        // DateTime OCC: "YYYY-MM-DD HH:MM:SS" — slice(0,10) gives ISO date, sorts as string
+        const dt = d["DateTime OCC"];
+        if (dateFrom && dt && dt.slice(0, 10) < dateFrom) continue;
+        if (dateTo   && dt && dt.slice(0, 10) > dateTo)   continue;
+
+        if (search) {
+            const hit =
+                String(d["DR_NO"]       || "").includes(search) ||
+                (d["LOCATION"]          || "").toLowerCase().includes(search) ||
+                (d["Crm Cd Desc"]       || "").toLowerCase().includes(search);
+            if (!hit) continue;
+        }
+
+        data.push(d);
+    }
+
+    res.json(
+        data.map(d => ({
+            longitude: d.LON,
+            latitude: d.LAT,
+            id: d.DR_NO
+        }))
+    );
+});
+
+
+app.get("/coordinates/:id", (req, res) => {
+    const id = req.params.id;
+    const record = crimeData.find(d => d.DR_NO == id);
+    if (!record) {
+        return res.status(404).json({ error: "Record not found" });
+    }
+    res.json(record);
+});
+
 const PORT = 3000;
 app.listen(PORT, () => console.log(`Server at http://localhost:${PORT}`));
 
