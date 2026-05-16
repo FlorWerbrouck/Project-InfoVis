@@ -21,6 +21,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/deck.gl@9.0.29/dist.min.js"></script>
+    <script src="https://unpkg.com/deck.gl-leaflet@1.3.1/dist/deck.gl-leaflet.umd.min.js"></script>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -88,7 +90,10 @@
                 Map controls <span class="caret">&#9660;</span>
             </div>
             <div class="sb-section-body" id="sb-map-ctrl">
+                <button class="map-ctrl-btn active" id="btn-markers">Markers</button>
                 <button class="map-ctrl-btn" id="btn-heatmap">&#127777;&#65039; Heatmap</button>
+                <button class="map-ctrl-btn" id="btn-scatter">Scatterplot</button>
+                <button class="map-ctrl-btn" id="btn-grid">Grid</button>
                 <button class="map-ctrl-btn" id="btn-draw-region">&#9998;&#65039; Draw region</button>
                 <button class="map-ctrl-btn" id="btn-clear-region">&#10005; Clear region</button>
             </div>
