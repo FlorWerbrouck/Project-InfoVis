@@ -1,7 +1,9 @@
 import { map, addMarkersForArea, removeMarkersForArea,
          initAreaLayer, initDivisionLayer,
-         setAreaSelected, ZOOM_THRESHOLD }               from './map.js';
-import { initUI }                                        from './ui.js';
+         setAreaSelected, ZOOM_THRESHOLD,
+         hideLeafletLayers, showLeafletLayers,
+         heatmap}               from './map.js';
+import { initUI, activeButton }                                        from './ui.js';
 import { buildFilterOptions, getFilterParams,
          fetchData, resetFilters }                       from './filters.js';
 import { updateStats, updateAreaStats, renderTrends, renderBarChart, renderCorrelations } from './charts.js';
@@ -12,6 +14,8 @@ const MAX_SELECTED  = 3;
 let totalRecords    = 0;
 let globalMetadata  = null;
 let currentFilters  = {};
+let showDeck = false;
+let typeMap = 'heatmap';
 
 // areaName → { data: [...], totalMatching: number }
 const selectedAreas = new Map();
@@ -338,3 +342,54 @@ document.getElementById("search-input").addEventListener("keydown", async e => {
         refreshStats(); // Update charts with new search
     }
 });
+
+
+document.getElementById("btn-markers").addEventListener("click", async (e) => {
+    showDeck = false;
+    showLeafletLayers();
+    await refreshSelectedAreas();
+
+    document.querySelectorAll(".map-ctrl-btn").forEach(btn => {
+        btn.classList.remove("active");
+    });
+
+    e.currentTarget.classList.add("active");
+});
+
+document.getElementById("btn-heatmap").addEventListener("click", (e) => {
+    typeMap = 'heatmap';
+    showDeck = true;
+    getHeatmap(typeMap);
+    hideLeafletLayers();
+    activeButton(e);
+
+});
+document.getElementById("btn-grid").addEventListener("click", (e) => {
+    typeMap = 'grid';
+    showDeck = true;
+    getHeatmap(typeMap);
+    hideLeafletLayers();
+    activeButton(e);
+
+});
+
+document.getElementById("btn-scatter").addEventListener("click", (e) => {
+    typeMap = 'scatterplot';
+    showDeck = true;
+    getHeatmap(typeMap);
+    hideLeafletLayers();
+    activeButton(e);
+
+});
+
+async function getHeatmap(layerType) {
+    setMapLoading(true);
+    try {
+        await heatmap(currentFilters, layerType);
+
+    } catch (err) {
+        console.error("Error refreshing areas:", err);
+    } finally {
+        setMapLoading(false);
+    }
+}
