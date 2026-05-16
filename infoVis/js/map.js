@@ -253,3 +253,113 @@ export function getBounds() {
         maxLon: b.getEast(),
     };
 }
+
+
+// ── Deck GL ────────────────────────────────────────────────────────────────────
+
+
+let deckLayer;
+
+export async function heatmap(params = {}, layerType) {
+    const qs = new URLSearchParams(params).toString();
+
+    const res = await fetch(qs ? `/coordinates?${qs}` : "/coordinates");
+    const crimes = await res.json();
+    const areasData = await fetch("/divisions").then(r => r.json());
+
+    const polygonLayer = new deck.PolygonLayer({
+        id: 'divisions',
+        data: areasData.features,
+        getPolygon: d => d.geometry.coordinates,
+        stroked: true,
+        filled: false,
+        getLineColor: [0, 120, 255],
+        lineWidthMinPixels: 2
+    });
+
+    let newLayer;
+
+    if (layerType === 'heatmap') {
+        newLayer = new deck.HeatmapLayer({
+            id: 'crime-heatmap',
+            data: crimes,
+            getPosition: d => [d.longitude, d.latitude],
+            getWeight: d => 1,
+            radiusPixels: 25,
+            opacity: 0.7
+        });
+    } else if (layerType === 'scatterplot') {
+        newLayer = new deck.ScatterplotLayer({
+            id: 'crime-scatterplot',
+            data: crimes,
+            getPosition: d => [d.longitude, d.latitude],
+            getRadius: 100,
+            getFillColor: [255, 0, 0],
+            radiusMinPixels: 1,
+            radiusMaxPixels: 10,
+            opacity: 0.8,
+            pickable: true,
+            async onClick(info) {
+
+                if (!info.object) return;
+    
+                const crime = info.object;
+    
+                try {
+    
+                    const res = await fetch(`/coordinates/${crime.id}`);
+                    const fullRecord = await res.json();
+    
+                    const html = createPopup(fullRecord);
+    
+                    // show Leaflet popup
+                    L.popup()
+                        .setLatLng([crime.latitude, crime.longitude])
+                        .setContent(html)
+                        .openOn(map);
+    
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+        });
+    } else if (layerType === 'grid') {
+        newLayer = new deck.GridLayer({
+            id: 'crime-grid',
+            data: crimes,
+            getPosition: d => [d.longitude, d.latitude],
+            cellSize: 200,
+            elevationScale: 4,
+            elevationRange: [0, 1000],
+            extruded: true,
+        });
+    }
+
+    const layers = [newLayer, polygonLayer];
+
+    if (!deckLayer) {
+        deckLayer = new DeckGlLeaflet.LeafletLayer({ 
+            views: [new deck.MapView({ repeat: false })],
+            layers,
+         });
+        map.addLayer(deckLayer);
+    } else {
+        deckLayer.setProps({ layers });
+    }
+}
+
+
+export function hideLeafletLayers() {
+    if (map.hasLayer(cluster)) map.removeLayer(cluster);
+    if (areaLayer && map.hasLayer(areaLayer)) map.removeLayer(areaLayer);
+}
+
+export function showLeafletLayers() {
+    if (!map.hasLayer(cluster)) map.addLayer(cluster);
+    if (areaLayer && !map.hasLayer(areaLayer)) map.addLayer(areaLayer);
+    if (deckLayer) {
+        deckLayer.setProps({ layers: [] });
+    }
+}
+
+
