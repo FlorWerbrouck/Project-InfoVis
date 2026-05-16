@@ -44,3 +44,12 @@ function initPanelCollapse() {
         map.invalidateSize();
     });
 }
+
+export function activeButton(e) {
+    document.querySelectorAll(".map-ctrl-btn").forEach(btn => {
+        btn.classList.remove("active");
+    });
+
+    e.currentTarget.classList.add("active");
+
+}
