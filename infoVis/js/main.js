@@ -325,27 +325,27 @@ document.querySelectorAll(".panel-tab").forEach(tab => {
 
 document.getElementById("apply-filters-btn").addEventListener("click", async () => {
     currentFilters = getFilterParams();
-    await refreshSelectedAreas();
+    showDeck ? getHeatmap(typeMap) : refreshSelectedAreas();
     refreshStats(); // Update charts with new filters
 });
 
 document.getElementById("reset-filters-btn").addEventListener("click", () => {
     resetFilters();
     currentFilters = {};
-    deselectAll();
+    showDeck ? getHeatmap(typeMap) : deselectAll();
     refreshStats();
 });
 
 document.getElementById("search-btn").addEventListener("click", async () => {
     currentFilters = getFilterParams();
-    await refreshSelectedAreas();
+    showDeck ? getHeatmap(typeMap) : await refreshSelectedAreas();
     refreshStats(); // Update charts with new search
 });
 
 document.getElementById("search-input").addEventListener("keydown", async e => {
     if (e.key === "Enter") {
         currentFilters = getFilterParams();
-        await refreshSelectedAreas();
+        showDeck ? getHeatmap(typeMap) : await refreshSelectedAreas();
         refreshStats(); // Update charts with new search
     }
 });
