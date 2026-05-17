@@ -64,6 +64,7 @@ async function refreshStats() {
             } else  {
             updateStats(totalRecords, totalRecords, chartData);
         }
+                  }
         
         renderTrends(chartData);
         renderBarChart(chartData);
