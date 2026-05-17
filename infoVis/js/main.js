@@ -49,6 +49,7 @@ async function refreshStats() {
         // If filters are applied, fetch and show filtered data; otherwise show initial data
         let chartData = initialData;
         const hasFilters = Object.keys(currentFilters).length > 0;
+         let totalMatching = 0;
         
         if (Object.keys(currentFilters).length > 0) {
             try {
