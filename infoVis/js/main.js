@@ -55,6 +55,7 @@ async function refreshStats() {
             try {
                 const result = await fetchData(currentFilters);
                 chartData = result.data || [];
+                totalMatching = result.totalMatching;
             } catch (err) {
                 console.warn("Could not fetch filtered data for charts:", err);
             }
