@@ -43,7 +43,7 @@ function setCorrelationsLoading(on) {
 // ── Stats ──────────────────────────────────────────────────────────────────────
 
 async function refreshStats() {
-    if (selectedAreas.size === 0) {
+    if (selectedAreas.size === 0 || showDeck) {
         updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
         
         // If filters are applied, fetch and show filtered data; otherwise show initial data
@@ -57,6 +57,12 @@ async function refreshStats() {
             } catch (err) {
                 console.warn("Could not fetch filtered data for charts:", err);
             }
+        }
+         if (showDeck) {
+            if (Object.keys(currentFilters).length > 0) {
+                updateStats(totalRecords, totalMatching, chartData);
+            } else  {
+            updateStats(totalRecords, totalRecords, chartData);
         }
         
         renderTrends(chartData);
