@@ -333,7 +333,18 @@ export async function heatmap(params = {}, layerType) {
             elevationRange: [0, 1000],
             extruded: true,
         });
-    }
+    } else if (layerType === 'hexagon') {
+    newLayer = new deck.HexagonLayer({
+        id: 'crime-hexagon',
+        data: crimes,
+        getPosition: d => [d.longitude, d.latitude],
+        radius: 200,
+        elevationScale: 4,
+        elevationRange: [0, 1000],
+        extruded: true,
+        getFillColor: d => [255, 100 - d.count * 2, 0],
+    });
+}
 
     const layers = [newLayer, polygonLayer];
 
