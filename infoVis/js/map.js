@@ -360,6 +360,137 @@ export async function heatmap(params = {}, layerType) {
 }
 
 
+// ── Draw Region ────────────────────────────────────────────────────────────────
+
+let _drawnPolygon  = null;
+let _drawVertices  = [];
+let _drawMarkers   = [];
+let _drawPolyline  = null;
+let _drawRubber    = null;
+let _drawMode      = false;
+let _clickTimer    = null;
+let _onDrawComplete = null;
+
+function _clearDrawVisuals() {
+    _drawMarkers.forEach(m => map.removeLayer(m));
+    _drawMarkers = [];
+    if (_drawPolyline) { map.removeLayer(_drawPolyline); _drawPolyline = null; }
+    if (_drawRubber)   { map.removeLayer(_drawRubber);   _drawRubber   = null; }
+    _drawVertices = [];
+}
+
+function _updatePolyline() {
+    if (_drawPolyline) map.removeLayer(_drawPolyline);
+    if (_drawVertices.length < 2) { _drawPolyline = null; return; }
+    _drawPolyline = L.polyline(_drawVertices, {
+        color: '#1a73e8', weight: 2, dashArray: '6,4'
+    }).addTo(map);
+}
+
+function _onMapClick(e) {
+    L.DomEvent.stop(e);
+    clearTimeout(_clickTimer);
+    _clickTimer = setTimeout(() => {
+        if (!_drawMode) return;
+
+        // Snap-close: click within 15px of first vertex when 3+ vertices placed
+        if (_drawVertices.length >= 3) {
+            const p0 = map.latLngToContainerPoint(_drawVertices[0]);
+            const pm = map.latLngToContainerPoint(e.latlng);
+            if (p0.distanceTo(pm) < 15) { _finalizePolygon(); return; }
+        }
+
+        _drawVertices.push(e.latlng);
+
+        const isFirst = _drawVertices.length === 1;
+        const marker = L.circleMarker(e.latlng, {
+            radius:      isFirst ? 7 : 5,
+            color:       isFirst ? '#e63946' : '#1a73e8',
+            fillColor:   isFirst ? '#e63946' : '#1a73e8',
+            fillOpacity: 1,
+            weight:      2,
+        }).addTo(map);
+        _drawMarkers.push(marker);
+        _updatePolyline();
+    }, 180);
+}
+
+function _onMapDblClick(e) {
+    L.DomEvent.stop(e);
+    clearTimeout(_clickTimer);
+    if (_drawVertices.length >= 3) _finalizePolygon();
+}
+
+function _onMapMouseMove(e) {
+    if (!_drawMode || _drawVertices.length === 0) return;
+
+    if (_drawRubber) map.removeLayer(_drawRubber);
+    _drawRubber = L.polyline([..._drawVertices, e.latlng], {
+        color: '#1a73e8', weight: 2, dashArray: '6,4', opacity: 0.55
+    }).addTo(map);
+
+    // Highlight first vertex when cursor is close enough to snap-close
+    if (_drawVertices.length >= 3 && _drawMarkers[0]) {
+        const p0 = map.latLngToContainerPoint(_drawVertices[0]);
+        const pm = map.latLngToContainerPoint(e.latlng);
+        const near = p0.distanceTo(pm) < 15;
+        _drawMarkers[0].setStyle({
+            color:     near ? '#ff6b00' : '#e63946',
+            fillColor: near ? '#ff6b00' : '#e63946',
+            radius:    near ? 10 : 7,
+        });
+    }
+}
+
+function _finalizePolygon() {
+    _drawMode = false;
+    map.off('click',     _onMapClick);
+    map.off('dblclick',  _onMapDblClick);
+    map.off('mousemove', _onMapMouseMove);
+    map.getContainer().style.cursor = '';
+
+    const verts = [..._drawVertices];
+    _clearDrawVisuals();
+
+    if (_drawnPolygon) { map.removeLayer(_drawnPolygon); _drawnPolygon = null; }
+    _drawnPolygon = L.polygon(verts, {
+        color: '#1a73e8', weight: 2,
+        fillColor: '#1a73e8', fillOpacity: 0.12,
+    }).addTo(map);
+
+    _onDrawComplete?.(verts.map(ll => [ll.lat, ll.lng]));
+}
+
+export function startDrawing(onComplete) {
+    if (_drawMode) stopDrawing();
+    _onDrawComplete = onComplete;
+    _drawMode = true;
+    _clearDrawVisuals();
+    // Hide area layer so its polygons don't intercept clicks while drawing
+    if (areaLayer && map.hasLayer(areaLayer)) map.removeLayer(areaLayer);
+    map.getContainer().style.cursor = 'crosshair';
+    map.on('click',     _onMapClick);
+    map.on('dblclick',  _onMapDblClick);
+    map.on('mousemove', _onMapMouseMove);
+}
+
+export function stopDrawing() {
+    _drawMode = false;
+    clearTimeout(_clickTimer);
+    map.off('click',     _onMapClick);
+    map.off('dblclick',  _onMapDblClick);
+    map.off('mousemove', _onMapMouseMove);
+    map.getContainer().style.cursor = '';
+    _clearDrawVisuals();
+    // Restore area layer
+    if (areaLayer && !map.hasLayer(areaLayer)) map.addLayer(areaLayer);
+}
+
+export function clearDrawnRegion() {
+    stopDrawing();
+    if (_drawnPolygon) { map.removeLayer(_drawnPolygon); _drawnPolygon = null; }
+}
+
 export function hideLeafletLayers() {
     if (map.hasLayer(cluster)) map.removeLayer(cluster);
     if (areaLayer && map.hasLayer(areaLayer)) map.removeLayer(areaLayer);
@@ -371,6 +502,12 @@ export function showLeafletLayers() {
     if (deckLayer) {
         deckLayer.setProps({ layers: [] });
     }
+}
+
+export function setAreaLayerVisible(visible) {
+    if (!areaLayer) return;
+    if (visible  && !map.hasLayer(areaLayer)) map.addLayer(areaLayer);
+    if (!visible &&  map.hasLayer(areaLayer)) map.removeLayer(areaLayer);
 }
 
 

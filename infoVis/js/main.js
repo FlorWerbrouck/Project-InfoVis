@@ -1,9 +1,10 @@
 import { map, addMarkersForArea, removeMarkersForArea,
          initAreaLayer, initDivisionLayer,
          setAreaSelected, ZOOM_THRESHOLD,
-         hideLeafletLayers, showLeafletLayers,
-         heatmap}               from './map.js';
-import { initUI, activeButton }                                        from './ui.js';
+         hideLeafletLayers, showLeafletLayers, heatmap,
+         startDrawing, stopDrawing, clearDrawnRegion,
+         setAreaLayerVisible }  from './map.js';
+import { initUI, setModeActive }                                       from './ui.js';
 import { buildFilterOptions, getFilterParams,
          fetchData, resetFilters }                       from './filters.js';
 import { updateStats, updateAreaStats, renderTrends, renderBarChart, renderCorrelations } from './charts.js';
@@ -16,6 +17,7 @@ let globalMetadata  = null;
 let currentFilters  = {};
 let showDeck = false;
 let typeMap = 'heatmap';
+let currentDrawnPolygon = null; // [[lat,lon], ...] — set when a region is drawn
 
 // areaName → { data: [...], totalMatching: number }
 const selectedAreas = new Map();
@@ -45,41 +47,39 @@ function setCorrelationsLoading(on) {
 async function refreshStats() {
     if (selectedAreas.size === 0 || showDeck) {
         updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
-        
-        // If filters are applied, fetch and show filtered data; otherwise show initial data
+
         let chartData = initialData;
-        const hasFilters = Object.keys(currentFilters).length > 0;
-         let totalMatching = 0;
-        
-        if (Object.keys(currentFilters).length > 0) {
+        let totalMatching = 0;
+        const hasActiveFilter = Object.keys(currentFilters).length > 0 || currentDrawnPolygon;
+
+        if (hasActiveFilter) {
             try {
-                const result = await fetchData(currentFilters);
+                const params = { ...currentFilters };
+                if (currentDrawnPolygon) params.polygon = JSON.stringify(currentDrawnPolygon);
+                const result = await fetchData(params);
                 chartData = result.data || [];
                 totalMatching = result.totalMatching;
             } catch (err) {
                 console.warn("Could not fetch filtered data for charts:", err);
             }
         }
-         if (showDeck) {
-            if (Object.keys(currentFilters).length > 0) {
-                updateStats(totalRecords, totalMatching, chartData);
-            } else  {
-            updateStats(totalRecords, totalRecords, chartData);
+
+        if (showDeck) {
+            updateStats(totalRecords, hasActiveFilter ? totalMatching : totalRecords, chartData);
         }
-                  }
-        
+
         renderTrends(chartData);
         renderBarChart(chartData);
         renderCorrelations(chartData);
         return;
     }
-    
+
     let totalMatching = 0;
     const allData = [];
     for (const { data, totalMatching: tm } of selectedAreas.values()) {
         if (data) { allData.push(...data); totalMatching += (tm || 0); }
     }
-    
+
     updateStats(totalRecords, totalMatching, allData);
     renderTrends(allData);
     renderBarChart(allData);
@@ -88,38 +88,64 @@ async function refreshStats() {
 
 // ── Region selection ───────────────────────────────────────────────────────────
 
+// Build fetch params for an area, always including the polygon filter when active
+function areaParams(name) {
+    const params = name === '__region__'
+        ? { ...currentFilters, polygon: JSON.stringify(currentDrawnPolygon) }
+        : { ...currentFilters, area: name };
+    if (name !== '__region__' && currentDrawnPolygon)
+        params.polygon = JSON.stringify(currentDrawnPolygon);
+    return params;
+}
+
+// When polygon is active and no districts are selected, load the full polygon as markers
+async function loadPolygonRegion() {
+    const params = { ...currentFilters, polygon: JSON.stringify(currentDrawnPolygon) };
+    const result = await fetchData(params);
+    selectedAreas.set('__region__', result);
+    await new Promise(r => setTimeout(r, 0));
+    addMarkersForArea('__region__', result.data);
+}
+
 async function toggleArea(areaName, center) {
     if (selectedAreas.has(areaName)) {
-        // Deselect
         selectedAreas.delete(areaName);
         setAreaSelected(areaName, false);
         removeMarkersForArea(areaName);
+        // If no districts remain and polygon is active, restore polygon-wide markers
+        const remaining = [...selectedAreas.keys()].filter(n => n !== '__region__');
+        if (remaining.length === 0 && currentDrawnPolygon) {
+            setMapLoading(true);
+            try { await loadPolygonRegion(); } finally { setMapLoading(false); }
+        }
         refreshStats();
         return;
     }
 
-    if (selectedAreas.size >= MAX_SELECTED) {
-        // Auto-deselect the oldest selected area
-        const oldest = selectedAreas.keys().next().value;
+    // Selecting a district: remove the polygon-wide markers (avoid double-counting)
+    if (selectedAreas.has('__region__')) {
+        removeMarkersForArea('__region__');
+        selectedAreas.delete('__region__');
+    }
+
+    const regularAreas = [...selectedAreas.keys()].filter(n => n !== '__region__');
+    if (regularAreas.length >= MAX_SELECTED) {
+        const oldest = regularAreas[0];
         selectedAreas.delete(oldest);
         setAreaSelected(oldest, false);
         removeMarkersForArea(oldest);
     }
 
-    // Select — reserve the slot immediately so the UI reflects selection
     selectedAreas.set(areaName, null);
     setAreaSelected(areaName, true);
 
-    // Zoom in if we're still at overview level
     if (map.getZoom() < ZOOM_THRESHOLD)
         map.setView(center, ZOOM_THRESHOLD + 1);
 
     setMapLoading(true);
     try {
-        const params = { ...currentFilters, area: areaName };
-        const result = await fetchData(params);
+        const result = await fetchData(areaParams(areaName));
         selectedAreas.set(areaName, result);
-        // Yield one frame so the overlay is painted before the synchronous marker work blocks
         await new Promise(r => setTimeout(r, 0));
         addMarkersForArea(areaName, result.data);
         refreshStats();
@@ -133,12 +159,19 @@ async function toggleArea(areaName, center) {
 }
 
 async function refreshSelectedAreas() {
-    if (selectedAreas.size === 0) return;
+    if (selectedAreas.size === 0) {
+        // Nothing selected — if polygon is active show polygon-wide markers
+        if (currentDrawnPolygon) {
+            setMapLoading(true);
+            try { await loadPolygonRegion(); refreshStats(); } finally { setMapLoading(false); }
+        }
+        return;
+    }
     setMapLoading(true);
     try {
         const results = await Promise.all(
             [...selectedAreas.keys()].map(name =>
-                fetchData({ ...currentFilters, area: name }).then(r => ({ name, r }))
+                fetchData(areaParams(name)).then(r => ({ name, r }))
             )
         );
         await new Promise(res => setTimeout(res, 0));
@@ -156,10 +189,14 @@ async function refreshSelectedAreas() {
 
 function deselectAll() {
     for (const name of selectedAreas.keys()) {
-        setAreaSelected(name, false);
+        if (name !== '__region__') setAreaSelected(name, false);
         removeMarkersForArea(name);
     }
     selectedAreas.clear();
+    currentDrawnPolygon = null;
+    clearDrawnRegion();
+    setAreaLayerVisible(true);
+    document.getElementById("btn-draw-region").classList.remove("active");
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
@@ -168,10 +205,10 @@ let initialData = []; // Store full dataset for initial charts
 
 (async () => {
     try {
-        setChartsLoading(true); // Show loading spinner for stats
-        setTrendsLoading(true); // Show loading spinner for trends
-        setCorrelationsLoading(true); // Show loading spinner for correlations
-        
+        setChartsLoading(true);
+        setTrendsLoading(true);
+        setCorrelationsLoading(true);
+
         const [metadata, divRes] = await Promise.all([
             fetch("/metadata").then(r => r.json()),
             fetch("/divisions"),
@@ -188,30 +225,38 @@ let initialData = []; // Store full dataset for initial charts
             initAreaLayer(areasData, toggleArea);
         }
 
-        // Fetch full dataset for initial charts
-        try {
-            const dataRes = await fetch("/data");
-            const dataJson = await dataRes.json();
-            initialData = dataJson.data || [];
-            
-            renderTrends(initialData);
-            renderBarChart(initialData);
-            renderCorrelations(initialData);
-        } catch (err) {
-            console.warn("Could not load initial data for charts:", err);
-        }
-
-        await refreshStats();
-        setChartsLoading(false); // Hide loading spinner for stats
-        setTrendsLoading(false); // Hide loading spinner for trends
-        setCorrelationsLoading(false); // Hide loading spinner for correlations
+        // Stats panel is ready immediately — no need to wait for full data
+        updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
+        setChartsLoading(false);
         setTimeout(() => map.invalidateSize(), 0);
+
+        // Load full dataset for charts in the background (non-blocking)
+        fetch("/data")
+            .then(r => r.json())
+            .then(dataJson => {
+                initialData = dataJson.data || [];
+                renderTrends(initialData);
+                renderBarChart(initialData);
+                renderCorrelations(initialData);
+            })
+            .catch(err => console.warn("Could not load initial data for charts:", err))
+            .finally(() => {
+                setTrendsLoading(false);
+                setCorrelationsLoading(false);
+                // Fade out the full-page loading overlay
+                const overlay = document.getElementById('app-loading');
+                overlay.classList.add('fade-out');
+                overlay.addEventListener('transitionend', () => overlay.classList.add('hidden'), { once: true });
+            });
 
     } catch (err) {
         console.error("Boot error:", err);
         setChartsLoading(false);
         setTrendsLoading(false);
         setCorrelationsLoading(false);
+        const overlay = document.getElementById('app-loading');
+        overlay.classList.add('fade-out');
+        overlay.addEventListener('transitionend', () => overlay.classList.add('hidden'), { once: true });
     }
 })();
 
@@ -353,67 +398,127 @@ document.getElementById("search-input").addEventListener("keydown", async e => {
 });
 
 
-document.getElementById("btn-markers").addEventListener("click", async (e) => {
+// ── Mode helpers ───────────────────────────────────────────────────────────────
+
+function cancelDrawMode() {
+    stopDrawing();
+    document.getElementById("btn-draw-region").classList.remove("active");
+}
+
+function switchToMarkers() {
+    cancelDrawMode();
     showDeck = false;
     showLeafletLayers();
+    setAreaLayerVisible(!currentDrawnPolygon);
+    setModeActive('btn-markers');
+}
+
+// ── Mode buttons ───────────────────────────────────────────────────────────────
+
+document.getElementById("btn-markers").addEventListener("click", async () => {
+    switchToMarkers();
     await refreshSelectedAreas();
     refreshStats();
-    activeButton(e);
 });
 
-document.getElementById("btn-heatmap").addEventListener("click", (e) => {
+document.getElementById("btn-heatmap").addEventListener("click", () => {
+    cancelDrawMode();
     typeMap = 'heatmap';
-    getHeatmap(typeMap);
+    showDeck = true;
+    getHeatmap('heatmap');
     hideLeafletLayers();
-   if (!showDeck) {
-        showDeck = true;
-        refreshStats();
-    }
-    activeButton(e);
-
-});
-document.getElementById("btn-grid").addEventListener("click", (e) => {
-    typeMap = 'grid';
-    getHeatmap(typeMap);
-    hideLeafletLayers();
-   if (!showDeck) {
-        showDeck = true;
-        refreshStats();
-    }
-    activeButton(e);
-
+    refreshStats();
+    setModeActive('btn-heatmap');
 });
 
-document.getElementById("btn-scatter").addEventListener("click", (e) => {
+document.getElementById("btn-scatter").addEventListener("click", () => {
+    cancelDrawMode();
     typeMap = 'scatterplot';
     showDeck = true;
-    getHeatmap(typeMap);
+    getHeatmap('scatterplot');
     hideLeafletLayers();
-   if (!showDeck) {
-        showDeck = true;
-        refreshStats();
-    }
-    activeButton(e);
-
+    refreshStats();
+    setModeActive('btn-scatter');
 });
 
-document.getElementById("btn-hexagon").addEventListener("click", (e) => {
-    typeMap = 'hexagon';
-    getHeatmap(typeMap);
+// Grid and Hexagon are legacy — they piggyback on the Heatmap slot visually
+document.getElementById("btn-grid").addEventListener("click", () => {
+    cancelDrawMode();
+    typeMap = 'grid';
+    showDeck = true;
+    getHeatmap('grid');
     hideLeafletLayers();
-   if (!showDeck) {
-        showDeck = true;
-        refreshStats();
-    }
-    activeButton(e);
+    refreshStats();
+    setModeActive('btn-heatmap');
+});
 
+document.getElementById("btn-hexagon").addEventListener("click", () => {
+    cancelDrawMode();
+    typeMap = 'hexagon';
+    showDeck = true;
+    getHeatmap('hexagon');
+    hideLeafletLayers();
+    refreshStats();
+    setModeActive('btn-heatmap');
+});
+
+// ── Draw region tool ───────────────────────────────────────────────────────────
+
+document.getElementById("btn-draw-region").addEventListener("click", (e) => {
+    if (showDeck) {
+        showDeck = false;
+        showLeafletLayers();
+    }
+    setModeActive('btn-markers');
+    const drawBtn = e.currentTarget; // capture now — currentTarget is null inside async callbacks
+    drawBtn.classList.add("active");
+    startDrawing(async (latlngs) => {
+        drawBtn.classList.remove("active");
+        currentDrawnPolygon = latlngs;
+        setAreaLayerVisible(false);
+
+        // Clear any existing district selections — polygon is now the active filter
+        for (const name of [...selectedAreas.keys()]) {
+            if (name !== '__region__') setAreaSelected(name, false);
+            removeMarkersForArea(name);
+        }
+        selectedAreas.clear();
+
+        setMapLoading(true);
+        try {
+            if (showDeck) {
+                await getHeatmap(typeMap);
+            } else {
+                await loadPolygonRegion();
+            }
+            refreshStats();
+        } catch (err) {
+            console.error("Error loading drawn region:", err);
+        } finally {
+            setMapLoading(false);
+        }
+    });
+});
+
+document.getElementById("btn-clear-region").addEventListener("click", () => {
+    currentDrawnPolygon = null;
+    stopDrawing();
+    clearDrawnRegion();
+    removeMarkersForArea('__region__');
+    selectedAreas.delete('__region__');
+    setAreaLayerVisible(true);
+    document.getElementById("btn-draw-region").classList.remove("active");
+    // Re-fetch any selected districts without the polygon filter
+    refreshSelectedAreas();
+    refreshStats();
 });
 
 async function getHeatmap(layerType) {
     setMapLoading(true);
     try {
-        await heatmap(currentFilters, layerType);
-
+        const params = { ...currentFilters };
+        if (currentDrawnPolygon) params.polygon = JSON.stringify(currentDrawnPolygon);
+        await heatmap(params, layerType);
     } catch (err) {
         console.error("Error refreshing areas:", err);
     } finally {

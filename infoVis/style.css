@@ -157,6 +157,46 @@ body {
 }
 .btn-ghost:hover { background: #f5f5f5; }
 
+/* ── Mode toggle (Markers / Heatmap / Scatter) ────────────────────────────── */
+
+.mode-toggle {
+    display: flex;
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border: none;
+    border-right: 1px solid #ddd;
+    background: white;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: inherit;
+    text-align: center;
+    transition: background 0.15s, color 0.15s;
+}
+.mode-btn:last-child { border-right: none; }
+.mode-btn:hover:not(.active) { background: #f5f5f5; }
+.mode-btn.active {
+    background: #e63946;
+    color: white;
+    font-weight: 600;
+}
+
+/* ── Secondary map control buttons ──────────────────────────────────────── */
+
+.map-ctrl-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.map-ctrl-row .map-ctrl-btn { flex: 1; margin-bottom: 0; }
+
 .map-ctrl-btn {
     width: 100%;
     padding: 7px 10px;
@@ -260,6 +300,46 @@ body {
     font-size: 0.85rem;
     border: 2px dashed #eee;
     border-radius: 6px;
+}
+
+/* ── Full-page app loading overlay ───────────────────────────────────────────── */
+
+#app-loading {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    transition: opacity 0.4s ease;
+}
+#app-loading.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+#app-loading.hidden { display: none; }
+
+#app-loading-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+}
+
+#app-loading-text {
+    font-size: 1rem;
+    color: #555;
+    font-family: inherit;
+}
+
+.app-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #eee;
+    border-top-color: #e63946;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
 }
 
 /* ── Map loading overlay ─────────────────────────────────────────────────────── */

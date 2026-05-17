@@ -27,6 +27,13 @@
 </head>
 <body>
 
+<div id="app-loading">
+    <div id="app-loading-card">
+        <div class="app-loading-spinner"></div>
+        <div id="app-loading-text">Loading LA Crime Data&hellip;</div>
+    </div>
+</div>
+
 <header id="header">
     <button id="sidebar-toggle-btn" title="Toggle sidebar">&#9776;</button>
     <h1>LA Crime Dashboard</h1>
@@ -90,12 +97,16 @@
                 Map controls <span class="caret">&#9660;</span>
             </div>
             <div class="sb-section-body" id="sb-map-ctrl">
-                <button class="map-ctrl-btn active" id="btn-markers">Markers</button>
-                <button class="map-ctrl-btn" id="btn-heatmap">Heatmap</button>
-                <button class="map-ctrl-btn" id="btn-scatter">Scatterplot</button>
-                <button class="map-ctrl-btn" id="btn-grid">Grid</button>
-                <button class="map-ctrl-btn" id="btn-hexagon">Hexagon</button>
-                <button class="map-ctrl-btn" id="btn-draw-region">&#9998;&#65039; Draw region</button>
+                <div class="mode-toggle">
+                    <button class="mode-btn active" id="btn-markers">Markers</button>
+                    <button class="mode-btn" id="btn-heatmap">Heatmap</button>
+                    <button class="mode-btn" id="btn-scatter">Scatter</button>
+                </div>
+                <div class="map-ctrl-row">
+                    <button class="map-ctrl-btn" id="btn-grid">Grid</button>
+                    <button class="map-ctrl-btn" id="btn-hexagon">Hexagon</button>
+                </div>
+                <button class="map-ctrl-btn" id="btn-draw-region">&#9998; Draw region</button>
                 <button class="map-ctrl-btn" id="btn-clear-region">&#10005; Clear region</button>
             </div>
         </div>

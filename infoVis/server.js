@@ -5,6 +5,9 @@ const { chain }       = require("stream-chain");
 const { parser }      = require("stream-json");
 const { streamArray } = require("stream-json/streamers/stream-array.js");
 
+process.on('uncaughtException',  err => console.error('CRASH uncaughtException:',  err));
+process.on('unhandledRejection', err => console.error('CRASH unhandledRejection:', err));
+
 const app = express();
 app.use(compression());
 app.use(express.static("."));
@@ -120,6 +123,21 @@ try {
 
 console.log("Ready.");
 
+// ── Point-in-polygon (ray casting) ───────────────────────────────────────────
+
+function pointInPolygon(lat, lon, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const lati = polygon[i][0], loni = polygon[i][1];
+        const latj = polygon[j][0], lonj = polygon[j][1];
+        if (((lati > lat) !== (latj > lat)) &&
+            (lon < (lonj - loni) * (lat - lati) / (latj - lati) + loni)) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.get("/metadata",   (req, res) => res.json(metadata));
@@ -131,7 +149,8 @@ app.get("/divisions",  (req, res) => {
 
 app.get("/data", (req, res) => {
     const { crimeType, area, gender, status, ageMin, ageMax,
-            dateFrom, dateTo, q, minLat, maxLat, minLon, maxLon } = req.query;
+            dateFrom, dateTo, q, minLat, maxLat, minLon, maxLon,
+            polygon: polygonParam } = req.query;
 
     const hasBbox  = minLat !== undefined;
     const bMinLat  = hasBbox ? +minLat : 0;
@@ -140,15 +159,25 @@ app.get("/data", (req, res) => {
     const bMaxLon  = hasBbox ? +maxLon : 0;
     const search   = q ? q.toLowerCase() : null;
 
+    let polygon = null;
+    if (polygonParam) {
+        try { polygon = JSON.parse(polygonParam); } catch { /* ignore bad param */ }
+    }
+
     let totalMatching = 0;
     const data = [];
 
     for (const d of crimeData) {
-        // Bounding box (required when zoomed in)
+        // Bounding box
         if (hasBbox) {
             if (!d.LAT || !d.LON) continue;
             if (d.LAT < bMinLat || d.LAT > bMaxLat ||
                 d.LON < bMinLon || d.LON > bMaxLon) continue;
+        }
+
+        // Drawn polygon filter
+        if (polygon) {
+            if (!d.LAT || !d.LON || !pointInPolygon(d.LAT, d.LON, polygon)) continue;
         }
 
         // Attribute filters
@@ -183,20 +212,33 @@ app.get("/data", (req, res) => {
 
 
 app.get("/coordinates", (req, res) => {
-    const data = [];
-
-    if (Object.keys(req.query).length === 0) {
-        return res.json(
-            crimeData.map(d => ({
-                longitude: d.LON,
-                latitude: d.LAT,
-                id: d.DR_NO
-            }))
-        );
-    }
+    console.log("[/coordinates] query:", JSON.stringify(req.query).slice(0, 200));
 
     const { crimeType, area, gender, status, ageMin, ageMax,
-            dateFrom, dateTo, q, minLat, maxLat, minLon, maxLon } = req.query;
+            dateFrom, dateTo, q, minLat, maxLat, minLon, maxLon,
+            polygon: polygonParam } = req.query;
+
+    let polygon = null;
+    if (polygonParam) {
+        try {
+            polygon = JSON.parse(polygonParam);
+            console.log(`[/coordinates] polygon parsed OK, ${polygon.length} vertices`);
+        } catch (e) {
+            console.warn("[/coordinates] polygon parse failed:", e.message);
+        }
+    } else {
+        console.log("[/coordinates] no polygon param");
+    }
+
+    const hasFilters = Object.keys(req.query).length > 0;
+
+    // Fast path: no filters at all
+    if (!hasFilters) {
+        console.log("[/coordinates] fast path — returning all", crimeData.length, "records");
+        return res.json(
+            crimeData.map(d => ({ longitude: d.LON, latitude: d.LAT, id: d.DR_NO }))
+        );
+    }
 
     const hasBbox  = minLat !== undefined;
     const bMinLat  = hasBbox ? +minLat : 0;
@@ -205,16 +247,18 @@ app.get("/coordinates", (req, res) => {
     const bMaxLon  = hasBbox ? +maxLon : 0;
     const search   = q ? q.toLowerCase() : null;
 
-
+    const data = [];
     for (const d of crimeData) {
-        // Bounding box (required when zoomed in)
         if (hasBbox) {
             if (!d.LAT || !d.LON) continue;
             if (d.LAT < bMinLat || d.LAT > bMaxLat ||
                 d.LON < bMinLon || d.LON > bMaxLon) continue;
         }
 
-        // Attribute filters
+        if (polygon) {
+            if (!d.LAT || !d.LON || !pointInPolygon(d.LAT, d.LON, polygon)) continue;
+        }
+
         if (crimeType && d["Crm Cd Desc"] !== crimeType) continue;
         if (area      && d["AREA NAME"]   !== area)      continue;
         if (gender    && d["Vict Sex"]    !== gender)    continue;
@@ -224,7 +268,6 @@ app.get("/coordinates", (req, res) => {
         if (ageMin && (age == null || age < +ageMin)) continue;
         if (ageMax && (age == null || age > +ageMax)) continue;
 
-        // DateTime OCC: "YYYY-MM-DD HH:MM:SS" — slice(0,10) gives ISO date, sorts as string
         const dt = d["DateTime OCC"];
         if (dateFrom && dt && dt.slice(0, 10) < dateFrom) continue;
         if (dateTo   && dt && dt.slice(0, 10) > dateTo)   continue;
@@ -240,12 +283,9 @@ app.get("/coordinates", (req, res) => {
         data.push(d);
     }
 
+    console.log(`[/coordinates] returning ${data.length} records (polygon=${!!polygon})`);
     res.json(
-        data.map(d => ({
-            longitude: d.LON,
-            latitude: d.LAT,
-            id: d.DR_NO
-        }))
+        data.map(d => ({ longitude: d.LON, latitude: d.LAT, id: d.DR_NO }))
     );
 });
 
@@ -260,6 +300,12 @@ app.get("/coordinates/:id", (req, res) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => console.log(`Server at http://localhost:${PORT}`));
+const server = app.listen(PORT, () => console.log(`Server at http://localhost:${PORT}`));
+server.on('error', err => console.error('Server error:', err));
+
+// Diagnose: check what handles are still active 2 seconds after boot
+setTimeout(() => {
+    console.log('Still alive after 2s — server is running normally');
+}, 2000);
 
 })();

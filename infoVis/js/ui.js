@@ -45,11 +45,7 @@ function initPanelCollapse() {
     });
 }
 
-export function activeButton(e) {
-    document.querySelectorAll(".map-ctrl-btn").forEach(btn => {
-        btn.classList.remove("active");
-    });
-
-    e.currentTarget.classList.add("active");
-
+export function setModeActive(id) {
+    document.querySelectorAll(".mode-btn").forEach(btn => btn.classList.remove("active"));
+    document.getElementById(id)?.classList.add("active");
 }
