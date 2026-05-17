@@ -348,27 +348,29 @@ document.getElementById("btn-markers").addEventListener("click", async (e) => {
     showDeck = false;
     showLeafletLayers();
     await refreshSelectedAreas();
-
-    document.querySelectorAll(".map-ctrl-btn").forEach(btn => {
-        btn.classList.remove("active");
-    });
-
-    e.currentTarget.classList.add("active");
+    refreshStats();
+    activeButton(e);
 });
 
 document.getElementById("btn-heatmap").addEventListener("click", (e) => {
     typeMap = 'heatmap';
-    showDeck = true;
     getHeatmap(typeMap);
     hideLeafletLayers();
+   if (!showDeck) {
+        showDeck = true;
+        refreshStats();
+    }
     activeButton(e);
 
 });
 document.getElementById("btn-grid").addEventListener("click", (e) => {
     typeMap = 'grid';
-    showDeck = true;
     getHeatmap(typeMap);
     hideLeafletLayers();
+   if (!showDeck) {
+        showDeck = true;
+        refreshStats();
+    }
     activeButton(e);
 
 });
@@ -378,6 +380,22 @@ document.getElementById("btn-scatter").addEventListener("click", (e) => {
     showDeck = true;
     getHeatmap(typeMap);
     hideLeafletLayers();
+   if (!showDeck) {
+        showDeck = true;
+        refreshStats();
+    }
+    activeButton(e);
+
+});
+
+document.getElementById("btn-hexagon").addEventListener("click", (e) => {
+    typeMap = 'hexagon';
+    getHeatmap(typeMap);
+    hideLeafletLayers();
+   if (!showDeck) {
+        showDeck = true;
+        refreshStats();
+    }
     activeButton(e);
 
 });
