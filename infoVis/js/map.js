@@ -1,28 +1,5 @@
 export const ZOOM_THRESHOLD = 12;
 
-// Descent code mapping
-const descentMapping = {
-    "A": "Other Asian",
-    "B": "Black",
-    "C": "Chinese",
-    "D": "Cambodian",
-    "F": "Filipino",
-    "G": "Guamanian",
-    "H": "Hispanic/Latin/Mexican",
-    "I": "American Indian/Alaskan Native",
-    "J": "Japanese",
-    "K": "Korean",
-    "L": "Laotian",
-    "O": "Other",
-    "P": "Pacific Islander",
-    "S": "Samoan",
-    "U": "Hawaiian",
-    "V": "Vietnamese",
-    "W": "White",
-    "X": "Unknown",
-    "Z": "Asian Indian"
-};
-
 export const map = L.map('map', { fullscreenControl: true, worldCopyJump: false, attributionControl: false });
 L.control.attribution({ position: 'bottomleft' }).addTo(map);
 
@@ -109,9 +86,6 @@ function getCrimePartLabel(part) {
 function createPopup(d) {
     const extra = [d["Crm Cd 2 Desc"], d["Crm Cd 3 Desc"], d["Crm Cd 4 Desc"]]
         .filter(Boolean).map(c => `<br>&nbsp;&nbsp;+ ${c}`).join("");
-    
-    const descentCode = d["Vict Descent"] || "X";
-    const descentLabel = descentMapping[descentCode] || "Unknown";
 
     return `
         <b>${d["Crm Cd Desc"] || "N/A"}</b>${extra}<br>
@@ -123,8 +97,8 @@ function createPopup(d) {
         <b>Premise:</b> ${d["Premis Desc"] || "N/A"}<br>
         <br>
         <b>Victim Age:</b> ${d["Vict Age"] ?? "N/A"}<br>
-        <b>Victim Sex:</b> ${d["Vict Sex"] || "N/A"}<br>
-        <b>Victim Descent:</b> ${descentLabel}<br>
+        <b>Victim Sex:</b> ${d["Vict Sex Desc"] || "N/A"}<br>
+        <b>Victim Descent:</b> ${d["Vict Descent Desc"] || "N/A"}<br>
         <br>
         <b>Area:</b> ${d["AREA NAME"] || "N/A"}<br>
         <b>Location:</b> ${d["LOCATION"] || "N/A"}<br>

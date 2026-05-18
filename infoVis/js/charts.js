@@ -248,29 +248,6 @@ if (typeof window !== 'undefined') {
     window.correlationCharts = correlationCharts;
 }
 
-// Descent code mapping
-const descentMapping = {
-    "A": "Other Asian",
-    "B": "Black",
-    "C": "Chinese",
-    "D": "Cambodian",
-    "F": "Filipino",
-    "G": "Guamanian",
-    "H": "Hispanic/Latin/Mexican",
-    "I": "American Indian/Alaskan Native",
-    "J": "Japanese",
-    "K": "Korean",
-    "L": "Laotian",
-    "O": "Other",
-    "P": "Pacific Islander",
-    "S": "Samoan",
-    "U": "Hawaiian",
-    "V": "Vietnamese",
-    "W": "White",
-    "X": "Unknown",
-    "Z": "Asian Indian"
-};
-
 export function renderCorrelations(data) {
     if (!data || data.length === 0) {
         document.getElementById("chart-corr-gender").innerHTML = "<p style='text-align: center; color: #999;'>No data</p>";
@@ -298,17 +275,15 @@ export function renderCorrelations(data) {
     
     // Gender correlations
     const byGender = {};
-    const genderMap = { "M": "Male", "F": "Female", "X": "Unknown" };
     data.forEach(d => {
-        const gender = genderMap[d["Vict Sex"]] || "Unknown";
+        const gender = d["Vict Sex Desc"] || "Unknown";
         byGender[gender] = (byGender[gender] || 0) + 1;
     });
 
     // Descent correlations
     const byDescent = {};
     data.forEach(d => {
-        const descentCode = d["Vict Descent"] || "X";
-        const descent = descentMapping[descentCode] || "Unknown";
+        const descent = d["Vict Descent Desc"] || "Unknown";
         byDescent[descent] = (byDescent[descent] || 0) + 1;
     });
 
@@ -323,8 +298,7 @@ export function renderCorrelations(data) {
 
     // Render gender chart
     try {
-        const genderOrder = ["Male", "Female", "Unknown"];
-        const genderLabels = genderOrder.filter(g => g in byGender);
+        const genderLabels = Object.keys(byGender).sort();
         const genderCounts = genderLabels.map(g => byGender[g]);
         const genderTotal = genderCounts.reduce((a, b) => a + b, 0);
         const genderPercentages = genderCounts.map(count => (count / genderTotal) * 100);
