@@ -6,7 +6,7 @@ import { map, addMarkersForArea, removeMarkersForArea,
          setAreaLayerVisible }  from './map.js';
 import { initUI, setModeActive }                                       from './ui.js';
 import { buildFilterOptions, getFilterParams,
-         fetchData, resetFilters }                       from './filters.js';
+         fetchData, resetFilters, initDateSlider }       from './filters.js';
 import { updateStats, updateAreaStats, renderTrends, renderBarChart, renderCorrelations } from './charts.js';
 
 initUI();
@@ -45,45 +45,55 @@ function setCorrelationsLoading(on) {
 // ── Stats ──────────────────────────────────────────────────────────────────────
 
 async function refreshStats() {
-    if (selectedAreas.size === 0 || showDeck) {
-        updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
+    setChartsLoading(true);
+    setTrendsLoading(true);
+    setCorrelationsLoading(true);
 
-        let chartData = initialData;
-        let totalMatching = 0;
-        const hasActiveFilter = Object.keys(currentFilters).length > 0 || currentDrawnPolygon;
+    try {
+        if (selectedAreas.size === 0 || showDeck) {
+            updateAreaStats(totalRecords, globalMetadata?.topCrime, globalMetadata?.topArea);
 
-        if (hasActiveFilter) {
-            try {
-                const params = { ...currentFilters };
-                if (currentDrawnPolygon) params.polygon = JSON.stringify(currentDrawnPolygon);
-                const result = await fetchData(params);
-                chartData = result.data || [];
-                totalMatching = result.totalMatching;
-            } catch (err) {
-                console.warn("Could not fetch filtered data for charts:", err);
+            let chartData = initialData;
+            let totalMatching = 0;
+            const hasActiveFilter = Object.keys(currentFilters).length > 0 || currentDrawnPolygon;
+
+            if (hasActiveFilter) {
+                try {
+                    const params = { ...currentFilters };
+                    if (currentDrawnPolygon) params.polygon = JSON.stringify(currentDrawnPolygon);
+                    const result = await fetchData(params);
+                    chartData = result.data || [];
+                    totalMatching = result.totalMatching;
+                } catch (err) {
+                    console.warn("Could not fetch filtered data for charts:", err);
+                }
             }
+
+            if (showDeck || hasActiveFilter) {
+                updateStats(totalRecords, hasActiveFilter ? totalMatching : totalRecords, chartData);
+            }
+
+            renderTrends(chartData);
+            renderBarChart(chartData);
+            renderCorrelations(chartData);
+            return;
         }
 
-        if (showDeck) {
-            updateStats(totalRecords, hasActiveFilter ? totalMatching : totalRecords, chartData);
+        let totalMatching = 0;
+        const allData = [];
+        for (const { data, totalMatching: tm } of selectedAreas.values()) {
+            if (data) { allData.push(...data); totalMatching += (tm || 0); }
         }
 
-        renderTrends(chartData);
-        renderBarChart(chartData);
-        renderCorrelations(chartData);
-        return;
+        updateStats(totalRecords, totalMatching, allData);
+        renderTrends(allData);
+        renderBarChart(allData);
+        renderCorrelations(allData);
+    } finally {
+        setChartsLoading(false);
+        setTrendsLoading(false);
+        setCorrelationsLoading(false);
     }
-
-    let totalMatching = 0;
-    const allData = [];
-    for (const { data, totalMatching: tm } of selectedAreas.values()) {
-        if (data) { allData.push(...data); totalMatching += (tm || 0); }
-    }
-
-    updateStats(totalRecords, totalMatching, allData);
-    renderTrends(allData);
-    renderBarChart(allData);
-    renderCorrelations(allData);
 }
 
 // Expose refreshStats globally so it can be called from UI tab switches
@@ -220,6 +230,8 @@ let initialData = []; // Store full dataset for initial charts
         globalMetadata = metadata;
         totalRecords   = metadata.total;
         buildFilterOptions(metadata);
+        if (metadata.minDate && metadata.maxDate)
+            initDateSlider(metadata.minDate, metadata.maxDate);
 
         if (divRes.ok) {
             initDivisionLayer(await divRes.json(), toggleArea);

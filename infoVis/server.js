@@ -42,6 +42,7 @@ const byStatus  = {};   // Status Desc → count
 const crimeSet  = new Set();
 const areaSet   = new Set();
 const statusSet = new Set();
+let minDate = null, maxDate = null;
 
 for (const d of crimeData) {
     const area   = d["AREA NAME"];
@@ -56,6 +57,12 @@ for (const d of crimeData) {
     }
     if (crime)  { crimeSet.add(crime);   byCrime[crime]   = (byCrime[crime]   || 0) + 1; }
     if (status) { statusSet.add(status); byStatus[status] = (byStatus[status] || 0) + 1; }
+
+    const dt = d["DateTime OCC"]?.slice(0, 10);
+    if (dt) {
+        if (!minDate || dt < minDate) minDate = dt;
+        if (!maxDate || dt > maxDate) maxDate = dt;
+    }
 }
 
 const topCrime = Object.entries(byCrime).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
@@ -68,6 +75,8 @@ const metadata = {
     statuses:   [...statusSet].sort(),
     topCrime,
     topArea,
+    minDate,
+    maxDate,
 };
 
 const areas = Object.entries(byArea).map(([name, v]) => ({
@@ -212,29 +221,19 @@ app.get("/data", (req, res) => {
 
 
 app.get("/coordinates", (req, res) => {
-    console.log("[/coordinates] query:", JSON.stringify(req.query).slice(0, 200));
-
     const { crimeType, area, gender, status, ageMin, ageMax,
             dateFrom, dateTo, q, minLat, maxLat, minLon, maxLon,
             polygon: polygonParam } = req.query;
 
     let polygon = null;
     if (polygonParam) {
-        try {
-            polygon = JSON.parse(polygonParam);
-            console.log(`[/coordinates] polygon parsed OK, ${polygon.length} vertices`);
-        } catch (e) {
-            console.warn("[/coordinates] polygon parse failed:", e.message);
-        }
-    } else {
-        console.log("[/coordinates] no polygon param");
+        try { polygon = JSON.parse(polygonParam); } catch { /* ignore bad param */ }
     }
 
     const hasFilters = Object.keys(req.query).length > 0;
 
     // Fast path: no filters at all
     if (!hasFilters) {
-        console.log("[/coordinates] fast path — returning all", crimeData.length, "records");
         return res.json(
             crimeData.map(d => ({ longitude: d.LON, latitude: d.LAT, id: d.DR_NO }))
         );
@@ -283,7 +282,6 @@ app.get("/coordinates", (req, res) => {
         data.push(d);
     }
 
-    console.log(`[/coordinates] returning ${data.length} records (polygon=${!!polygon})`);
     res.json(
         data.map(d => ({ longitude: d.LON, latitude: d.LAT, id: d.DR_NO }))
     );
@@ -303,9 +301,5 @@ const PORT = 3000;
 const server = app.listen(PORT, () => console.log(`Server at http://localhost:${PORT}`));
 server.on('error', err => console.error('Server error:', err));
 
-// Diagnose: check what handles are still active 2 seconds after boot
-setTimeout(() => {
-    console.log('Still alive after 2s — server is running normally');
-}, 2000);
 
 })();
