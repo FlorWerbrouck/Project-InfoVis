@@ -86,6 +86,9 @@ async function refreshStats() {
     renderCorrelations(allData);
 }
 
+// Expose refreshStats globally so it can be called from UI tab switches
+window.refreshStats = refreshStats;
+
 // ── Region selection ───────────────────────────────────────────────────────────
 
 // Build fetch params for an area, always including the polygon filter when active

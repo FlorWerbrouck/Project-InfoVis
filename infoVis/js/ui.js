@@ -31,6 +31,14 @@ function initPanelTabs() {
             // Expand panel if it was collapsed
             document.getElementById("bottom-panel").classList.remove("collapsed");
             document.getElementById("panel-collapse-btn").textContent = "▼";
+            
+            // Refresh charts when switching to a tab that contains charts
+            const paneId = tab.dataset.pane;
+            if (paneId === "pane-overview" || paneId === "pane-trends" || paneId === "pane-correlations") {
+                if (window.refreshStats) {
+                    window.refreshStats();
+                }
+            }
         });
     });
 }
