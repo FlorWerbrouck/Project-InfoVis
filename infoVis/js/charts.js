@@ -327,7 +327,7 @@ export function renderCorrelations(data) {
             "chart-corr-descent",
             descentSorted.map(([k]) => k),
             descentPercentages,
-            "Top Crime Descents",
+            "Crimes by Victim Descents",
             "crimesDescent",
             descentCounts
         );
