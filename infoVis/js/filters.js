@@ -86,26 +86,52 @@ export function initDateSlider(minDate, maxDate) {
         updateFill();
     });
 
-    // Sync date text inputs → slider
+    // Sync date text inputs → slider (fool-proof validation)
     fromInput.addEventListener("change", () => {
-        const num = fromInput.value
-            ? Math.max(minNum, Math.min(maxNum, dateToNum(fromInput.value)))
-            : minNum;
-        sFrom.value = num;
+        if (!fromInput.value) {
+            sFrom.value = minNum;
+        } else {
+            let num = Math.max(minNum, Math.min(maxNum, dateToNum(fromInput.value)));
+            // If start > end, swap them
+            if (num > +sTo.value) {
+                const temp = +sTo.value;
+                sTo.value = num;
+                sFrom.value = temp;
+                toInput.value = +sTo.value === maxNum ? "" : numToDate(+sTo.value);
+                fromInput.value = +sFrom.value === minNum ? "" : numToDate(+sFrom.value);
+            } else {
+                sFrom.value = num;
+                fromInput.value = numToDate(num);
+            }
+        }
         updateFill();
     });
 
     toInput.addEventListener("change", () => {
-        const num = toInput.value
-            ? Math.max(minNum, Math.min(maxNum, dateToNum(toInput.value)))
-            : maxNum;
-        sTo.value = num;
+        if (!toInput.value) {
+            sTo.value = maxNum;
+        } else {
+            let num = Math.max(minNum, Math.min(maxNum, dateToNum(toInput.value)));
+            // If end < start, swap them
+            if (num < +sFrom.value) {
+                const temp = +sFrom.value;
+                sFrom.value = num;
+                sTo.value = temp;
+                fromInput.value = +sFrom.value === minNum ? "" : numToDate(+sFrom.value);
+                toInput.value = +sTo.value === maxNum ? "" : numToDate(+sTo.value);
+            } else {
+                sTo.value = num;
+                toInput.value = numToDate(num);
+            }
+        }
         updateFill();
     });
 
     _sliderReset = () => {
         sFrom.value = minNum;
         sTo.value   = maxNum;
+        fromInput.value = "";
+        toInput.value = "";
         updateFill();
     };
 
